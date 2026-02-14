@@ -125,7 +125,7 @@
         </div>
         <div style="display: grid; grid-template-columns: 1fr 1fr; gap:8px; margin-top:8px;">
             <select id="map-select" onchange="loadSelectedMap()"></select>
-
+            <button class="btn btn-danger" onclick="deleteCurrentMap()" style="width: auto; margin-top: 0;">削除</button>
         </div>
         <textarea id="output" spellcheck="false" onclick="this.select()"></textarea>
     </div>
@@ -480,6 +480,17 @@
     }
     
     function allClear() { if(confirm("初期化しますか？")) resizeGrid(false); }
+
+    function deleteCurrentMap() {
+        const sel = document.getElementById('map-select');
+        const idx = parseInt(sel.value);
+        const maps = window.__SERVER_MAPS || [];
+        if (!maps[idx]) return alert('削除するマップを選択してください');
+        const mapName = `${maps[idx].id} - ${maps[idx].name}`;
+        if (!confirm(`「${mapName}」を削除しますか？`)) return;
+        maps.splice(idx, 1);
+        saveAllMapsToLocal();
+    }
 
     // if a local maps.js defines `window.MAPS`, use it as the maps source
     if (window.MAPS && Array.isArray(window.MAPS)) {

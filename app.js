@@ -163,7 +163,7 @@ class MapEngine {
     container.innerHTML = `
       <style>
       .map-scope { background: #0d0f14; color: #e0e6ed; font-family: 'Segoe UI', sans-serif; border-radius:16px; padding: 1rem; }
-      .map-scope #game-ui { width: 420px; max-width: 100%; background: #1a1d23; border-radius: 28px; padding: 30px; position: relative; border: 1px solid #30363d; box-shadow: 0 30px 60px rgba(0,0,0,0.8); margin: 0 auto; }
+      .map-scope #game-ui { width: 420px; max-width: 100%; background: #1a1d23; border-radius: 28px; padding: 30px; position: relative; border: 3px solid #00d4ff; box-shadow: 0 30px 60px rgba(0,0,0,0.8), 0 0 30px rgba(0,212,255,0.4); margin: 0 auto; }
       .map-scope #navigation-core { position: absolute; top: -60px; right: 20px; width: 130px; height: 130px; display: flex; align-items: center; justify-content: center; }
       .map-scope #radar-grid { position: absolute; display: grid; grid-template-columns: repeat(3, 1fr); grid-template-rows: repeat(3, 1fr); width: 120px; height: 120px; gap: 4px; z-index: 1; pointer-events:none; }
       .map-scope .cell { border-radius: 4px; transition: background 0.2s; }
@@ -373,8 +373,8 @@ class MapEngine {
 
 	updateRadar() {
 	  const grid = this.$.grid; grid.innerHTML = '';
-	  const W = this.radarW || (Store?.settings?.radar?.w || 3);
-	  const H = this.radarH || (Store?.settings?.radar?.h || 3);
+	  const W = this.radarW || (Store?.settings?.radar?.w || 5);
+	  const H = this.radarH || (Store?.settings?.radar?.h || 5);
 	  for (let dy = -Math.floor((H-1)/2); dy <= Math.floor(H/2); dy++) {
 	    for (let dx = -Math.floor((W-1)/2); dx <= Math.floor(W/2); dx++) {
 	      const rawCell = this.getRawCell(this.currentPos.x + dx, this.currentPos.y + dy);
@@ -1037,7 +1037,7 @@ function router(){
   app.setAttribute('aria-busy','true');
   app.innerHTML = page.render();
   page.afterRender?.();
-  document.title = `${page.title} - 算術の塔`;
+  document.title = `${page.title} - 算術の塔 v1.0.0`;
   // （ナビの aria-current の付け替え等は既存通り）
   app.removeAttribute('aria-busy');
 }
@@ -1050,7 +1050,7 @@ window.addEventListener('DOMContentLoaded', ()=>{
    画面：タイトル
 ------------------------------ */
 function TitleScreen(){}
-TitleScreen.title = '算術の塔';
+TitleScreen.title = '算術の塔 v1.0.0';
 TitleScreen.render = () => {
   const saves = SaveSystem.list();
   const diffBtns = CONFIG.difficulties.map(d=>`<button class="button" data-diff="${d.id}">${d.label}</button>`).join('');

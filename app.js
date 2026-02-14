@@ -557,6 +557,9 @@ class BattleEngine {
       feedback: $('#feedback')
     };
 
+    // 敵フィールドを相対配置にして、エフェクトの絶対配置表示に対応
+    if (this.dom.enemyField) this.dom.enemyField.style.position = 'relative';
+
     Array.from(this.dom.keypad.querySelectorAll('.key')).forEach(el=>{
       const label = el.textContent.trim();
       if(label === 'DEL') el.addEventListener('click', ()=> this.del());

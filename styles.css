@@ -31,14 +31,14 @@ html,body{margin:0;padding:0;background:var(--bg);color:var(--text);
 .flex{display:flex;gap:.75rem;align-items:center;flex-wrap:wrap}
 .right{margin-left:auto}
 
-/* í“¬’†‘S‰æ–Ê‚É‚·‚é‚½‚ß‚ÌƒNƒ‰ƒX */
+/* æˆ¦é—˜ä¸­å…¨ç”»é¢ã«ã™ã‚‹ãŸã‚ã®ã‚¯ãƒ©ã‚¹ */
 body.battle-mode {
-  overflow: hidden;               /* ƒXƒNƒ[ƒ‹‹Ö~i•K—v‚È‚çj */
+  overflow: hidden;               /* ã‚¹ã‚¯ãƒ­ãƒ¼ãƒ«ç¦æ­¢ï¼ˆå¿…è¦ãªã‚‰ï¼‰ */
 }
 
 body.battle-mode .site-header,
 body.battle-mode .site-footer {
-  display: none !important;       /* ƒwƒbƒ_[/ƒtƒbƒ^[‚ğ‰B‚· */
+  display: none !important;       /* ãƒ˜ãƒƒãƒ€ãƒ¼/ãƒ•ãƒƒã‚¿ãƒ¼ã‚’éš ã™ */
 }
 
 body.battle-mode #app {
@@ -48,8 +48,8 @@ body.battle-mode #app {
 }
 
 body.battle-mode #battle-root {
-  /* í“¬ƒ‹[ƒg‚Ì•`‰æ—Ìˆæ‚ğAƒAƒhƒŒƒXƒo[‚Ì—h‚ç‚¬‚É‹­‚¢ 100dvh ‚Å‘S‰æ–Ê‰» */
+  /* æˆ¦é—˜ãƒ«ãƒ¼ãƒˆã®æç”»é ˜åŸŸã‚’ã€ã‚¢ãƒ‰ãƒ¬ã‚¹ãƒãƒ¼ã®æºã‚‰ãã«å¼·ã„ 100dvh ã§å…¨ç”»é¢åŒ– */
   height: 100dvh;
   width: 100vw;
-  overflow: hidden;               /* “à‘¤ƒXƒNƒ[ƒ‹‚à‹Ö~B•K—v‚É‰‚¶‚Ä auto ‚É */
+  overflow: hidden;               /* å†…å´ã‚¹ã‚¯ãƒ­ãƒ¼ãƒ«ã‚‚ç¦æ­¢ã€‚å¿…è¦ã«å¿œã˜ã¦ auto ã« */
 }

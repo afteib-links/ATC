@@ -11,13 +11,42 @@ const CONFIG = {
   disappearSteps: 12,
   baseRespawnLimit: 3,
   score: { timeWeight: -1, killWeight: 100, floorWeight: 500, baseClearBonus: 2000 },
-  difficulties: [
-    { id: 'easy', label:'EASY', grade:'初級', seed:101 },
-    { id: 'normal', label:'NORMAL', grade:'中級', seed:202 },
-    { id: 'hard', label:'HARD', grade:'上級', seed:303 }
-  ],
+  // ★ GRADESに基づいて動的に生成される難易度リスト（後で生成）
+  difficulties: [],
   autosave: true,
-  saveSlots: 3
+  saveSlots: 3,
+  
+  // ★ 追加：EXP計算設定
+  levelUpExpFormula: (level) => level * 50, // レベル×50でEXP必要値を計算
+  
+  // ★ 追加：ダメージ計算設定
+  damageCalc: {
+    comboMultiplier: 0.1,          // コンボボーナス倍率（コンボ数が上がると+10%ずつ）
+    ultimateStarThreshold: 30,      // 必殺技に必要な★合計
+    ultimateMultiplier: 3,          // 必殺技の倍率
+    paralysisChainThreshold: 4,     // 同じ操作が連続n回で特殊攻撃発動（連続した場合）
+    paralysisChainDamageMultiplier: 2, // 特殊攻撃のダメージ倍率
+    paralysisDuration: 5            // 麻痺時間（秒）
+  },
+  
+  // ★ 追加：Gradeごとのステータスアップ数
+  statusUpByGrade: {
+    "初級": {
+      hp: 20, atk: 2, def: 2, spd: 1
+    },
+    "中級": {
+      hp: 25, atk: 3, def: 3, spd: 1
+    },
+    "上級": {
+      hp: 30, atk: 4, def: 4, spd: 2
+    },
+    "超級": {
+      hp: 35, atk: 5, def: 5, spd: 2
+    },
+    "極級": {
+      hp: 40, atk: 6, def: 6, spd: 3
+    }
+  }
 };
 
 const SaveSystem = (() => {
@@ -29,6 +58,16 @@ const SaveSystem = (() => {
     append(data){ const s=loadAll(); if(s.length>=CONFIG.saveSlots) s.pop(); s.unshift(data); saveAll(s); }
   };
 })();
+
+// ★ 追加：GRADES から難易度リストを動的に生成
+if (typeof GRADES !== 'undefined' && GRADES) {
+  CONFIG.difficulties = Object.keys(GRADES).map((gradeName, idx) => ({
+    id: `grade_${idx}`,
+    label: gradeName.toUpperCase(),
+    grade: gradeName,
+    seed: 100 + (idx * 101)
+  }));
+}
 
 const Store = {
   difficulty: null,
@@ -310,7 +349,7 @@ class MapEngine {
     if(id === 'G'){
       this.isGoal = true;
       this.stopTimer();
-      this.addLog("<span class='score-msg'>【GOAL】目的地に到達！</span>");
+      this.addLog("<span class='score-msg'>出口にたどり着いたようだ。</span>");
       this.emit('reachedGoal');
     } else if(id === 'S'){
       this.addLog('ここはスタート地点。');
@@ -318,10 +357,10 @@ class MapEngine {
       this.addLog('道が続いている。');
     } else {
       if(typeof id === 'number'){
-        this.addLog(`地点 ${id} を検知。停止。`);
+        this.addLog(`開けた場所にたどり着いた。`);
         this.emit('enterEvent', {eventId:id});
       } else {
-        this.addLog(`地点 ${id} を検知。停止。`);
+        this.addLog(`開けた場所にたどり着いた。`);
       }
     }
   }
@@ -476,6 +515,8 @@ class BattleEngine {
 
     this.enemies = []; this.targetIdx=0; this.floorIdx=0; this.currentStage=1; this.currentGrade='初級';
     this.combo=0; this.lastOp=''; this.input=''; this.isPaused=true; this.missCount=0;
+    // ★ 追加：特殊攻撃用のプロパティ
+    this.opChainCount=0; // 同じoperatorの連続使用回数
     this.curProb={ a:null, rank:0, cardIdx:null, op:'', q:'' };
     this.baseStats={};
 
@@ -524,6 +565,9 @@ class BattleEngine {
       this.p.spd = player.stats?.spd ?? this.p.spd;
       this.p.mhp = player.stats?.hp ?? this.p.mhp;
       this.p.hp = this.p.mhp;
+      this.p.exp = player.exp ?? this.p.exp;
+      // ★ 次のレベルアップまでのEXPを計算
+      this.p.next = CONFIG.levelUpExpFormula(this.p.lv);
     }
     this.isPaused = false;
     this.battleInit();
@@ -592,6 +636,9 @@ class BattleEngine {
     const cont = this.dom.handRow.querySelector(`#card-cont-${idx}`);
     const newData = this.generateCardData();
     cont.replaceChild(this.createCardUI(newData, idx), this.dom.handRow.querySelector(`#card-obj-${idx}`));
+    // ★ カード破棄時もコンボをリセット
+    this.combo = 0;
+    this.opChainCount = 0;
     if(this.curProb.cardIdx === idx) this.resetTurn();
     this.updateUI();
   }
@@ -600,18 +647,73 @@ class BattleEngine {
   ok(){
     if(this.curProb.a === null || this.input === '') return;
     if(parseInt(this.input) === this.curProb.a){
+      // ★ コンボ計算
       if(this.curProb.op === this.lastOp) this.combo++; else this.combo=1;
       this.lastOp = this.curProb.op;
-      if(this.enemies[this.targetIdx].cur<=0) this.targetIdx = this.enemies.findIndex(e=>e.cur>0);
-      const damagePower = this.p.atk * this.curProb.rank * (1 + (this.combo-1)*0.1);
-      const finalDmg = Math.round(Math.max(1, damagePower - this.enemies[this.targetIdx].def));
-      this.enemies[this.targetIdx].cur -= finalDmg;
-      this.p.stars += this.curProb.rank;
-      this.showFeed(`${this.enemies[this.targetIdx].name}に ${finalDmg}ダメージ！`, 'var(--correct)');
-      if(this.enemies[this.targetIdx].cur <= 0){
-        this.enemies[this.targetIdx].cur = 0;
-        const alive = this.enemies.findIndex(e=>e.cur>0);
-        if(alive === -1) this.handleVictory(); else this.targetIdx = alive;
+      
+      // ★ 特殊攻撃：同じoperatorが連続4回で5回目にダメージ2倍
+      if(this.curProb.op === this.lastOp) {
+        this.opChainCount++;
+      } else {
+        this.opChainCount = 1;
+      }
+      
+      if(this.enemies[this.targetIdx].cur<=0 || this.enemies[this.targetIdx].hidden) {
+        this.targetIdx = this.enemies.findIndex(e=>e.cur>0 && !e.hidden);
+      }
+      if (this.targetIdx === -1) this.handleVictory();
+      else {
+        // ★ calculateDamage()を使用してダメージ計算
+        const damageInfo = calculateDamage(
+          { atk: this.p.atk, spd: this.p.spd },
+          this.curProb,
+          this.enemies[this.targetIdx],
+          this.combo,
+          this.p.stars,
+          CONFIG
+        );
+        
+        // ★ 特殊攻撃: 同じoperatorが4回連続で5回目のダメージを2倍
+        let finalDmg = damageInfo.damage;
+        if (this.opChainCount >= 5) {
+          finalDmg *= CONFIG.damageCalc.paralysisChainDamageMultiplier || 2;
+          this.showFeed(`⚡ 連続攻撃！ダメージ${CONFIG.damageCalc.paralysisChainDamageMultiplier}倍！`, 'var(--gold)');
+          this.opChainCount = 0; // リセット
+        }
+        
+        this.enemies[this.targetIdx].cur -= finalDmg;
+        this.p.stars += this.curProb.rank;
+        
+        // ★ 必殺技を使用した場合、★を消費
+        if (damageInfo.isUltimate) {
+          this.p.stars -= damageInfo.starConsumed;
+          this.showFeed(`⚡⚡ 必殺技 ${CONFIG.damageCalc.ultimateMultiplier}倍！`, 'var(--gold)');
+        }
+        
+        this.showFeed(`${this.enemies[this.targetIdx].name}に ${finalDmg}ダメージ！+${this.curProb.rank}★`, 'var(--correct)');
+        
+        // ★ 麻痺判定
+        if (damageInfo.paralysisInfo && damageInfo.paralysisInfo.isParalyzed) {
+          this.enemies[this.targetIdx].paralyzed = true;
+          this.enemies[this.targetIdx].paralysisTimer = damageInfo.paralysisInfo.duration;
+          this.showFeed(`${this.enemies[this.targetIdx].name}は麻痺した！`, 'var(--gold)');
+        }
+        
+        if(this.enemies[this.targetIdx].cur <= 0){
+          const enemy = this.enemies[this.targetIdx];
+          enemy.cur = 0;
+          
+          // ★ 復活可能な敵は隠す
+          if (enemy.respawnCount < enemy.respawnLimit) {
+            enemy.hidden = true;
+            enemy.hiddenTimer = enemy.respawnDelay;
+            enemy.respawnCount++;
+            this.showFeed(`${enemy.name}は身を隠した...`, 'var(--gold)');
+          }
+          
+          const alive = this.enemies.findIndex(e=>e.cur>0 && !e.hidden);
+          if(alive === -1) this.handleVictory(); else this.targetIdx = alive;
+        }
       }
       const idx = this.curProb.cardIdx;
       const cont = this.dom.handRow.querySelector(`#card-cont-${idx}`);
@@ -619,6 +721,9 @@ class BattleEngine {
       this.resetTurn();
     } else {
       this.missCount++;
+      // ★ ミスするとコンボがリセット
+      this.combo = 0;
+      this.opChainCount = 0;
       this.showFeed(`MISS! (残り:${3-this.missCount})`, 'var(--wrong)');
       if(this.missCount >= 3){
         const penalty = Math.max(5, Math.floor(this.p.atk*0.5));
@@ -661,7 +766,8 @@ class BattleEngine {
     this.p.exp += amt;
     while(this.p.exp >= this.p.next){
       this.p.lv++; this.p.bp += 5; this.p.exp -= this.p.next;
-      this.p.next = Math.floor(this.p.next * 1.5);
+      // ★ 変更：EXP計算を level × 50 に変更
+      this.p.next = CONFIG.levelUpExpFormula(this.p.lv);
       this.p.hp = this.p.mhp;
       this.openLvUp();
     }
@@ -670,7 +776,16 @@ class BattleEngine {
     this.isPaused = true;
     this.baseStats = { mhp:this.p.mhp, atk:this.p.atk, def:this.p.def, spd:this.p.spd };
     const rows = this.dom.lvRows; rows.innerHTML='';
-    const stats = [{k:'hp',n:'HP(+20)',inc:20},{k:'atk',n:'ATK(+2)',inc:2},{k:'def',n:'DEF(+2)',inc:2},{k:'spd',n:'SPD(+1)',inc:1}];
+    
+    // ★ 変更：Grade に応じてステータスアップ数を変更
+    const gradeConfig = CONFIG.statusUpByGrade[this.currentGrade] || { hp: 20, atk: 2, def: 2, spd: 1 };
+    const stats = [
+      {k:'hp',n:`HP(+${gradeConfig.hp})`,inc:gradeConfig.hp},
+      {k:'atk',n:`ATK(+${gradeConfig.atk})`,inc:gradeConfig.atk},
+      {k:'def',n:`DEF(+${gradeConfig.def})`,inc:gradeConfig.def},
+      {k:'spd',n:`SPD(+${gradeConfig.spd})`,inc:gradeConfig.spd}
+    ];
+    
     stats.forEach(s=>{
       const div = document.createElement('div');
       div.style = 'display:flex; justify-content:space-between; margin:12px 0; align-items:center;';
@@ -733,6 +848,28 @@ closeLvUp() {
   tick(){
     if(this.isPaused || this.p.hp<=0) return;
     this.enemies.forEach((e,i)=>{
+      // ★ 隠れている敵の復活タイマーを更新
+      if (e.hidden) {
+        e.hiddenTimer -= 0.1;
+        if (e.hiddenTimer <= 0) {
+          e.hidden = false;
+          e.cur = e.hp;
+          e.t = e.spd;
+          this.showFeed(`${e.name}が復活した！`, 'var(--gold)');
+        }
+        return; // 隠れている敵は攻撃しない
+      }
+      
+      // ★ 麻痺している敵のタイマーを更新
+      if (e.paralyzed) {
+        e.paralysisTimer -= 0.1;
+        if (e.paralysisTimer <= 0) {
+          e.paralyzed = false;
+          this.showFeed(`${e.name}は麻痺から回復した！`, 'var(--gold)');
+        }
+        return; // 麻痺している敵は攻撃しない
+      }
+      
       if(e.cur>0){
         e.t -= 0.1;
         if(e.t<=0){
@@ -769,10 +906,11 @@ closeLvUp() {
   renderEnemies(){
     const f = this.dom.enemyField; f.innerHTML='';
     this.enemies.forEach((e,i)=>{
-      if(e.cur<=0) return;
+      // ★ 隠れている敵や倒された敵を表示しない
+      if(e.cur<=0 || e.hidden) return;
       const div = document.createElement('div');
       div.className = `enemy-unit ${i===this.targetIdx?'target':''}`;
-      div.onclick = ()=>{ if(e.cur>0){ this.targetIdx=i; this.renderEnemies(); } };
+      div.onclick = ()=>{ if(e.cur>0 && !e.hidden){ this.targetIdx=i; this.renderEnemies(); } };
       const timerPercent = (Math.max(0,e.t)/e.spd)*100;
       div.innerHTML = `
         <div class="target-indicator">▼ TARGET</div>
@@ -793,9 +931,24 @@ closeLvUp() {
     this.dom.pFloor.textContent = floorData.floor || '';
     const stageData = (floorData.stages||[]).find(s=>s.id===this.currentStage) || (floorData.stages||[])[0];
     const resolveStat = this._resolveStat;
-    this.enemies = stageData.enemies.map(en => ({
-      ...en, hp: resolveStat(en.hp), cur: 0, atk: resolveStat(en.atk), def: resolveStat(en.def), spd: resolveStat(en.spd), exp: resolveStat(en.exp)
-    }));
+    this.enemies = stageData.enemies.map(en => {
+      const isBoss = en.name.includes('BOSS') || en.name.includes('ボス');
+      return {
+        ...en,
+        hp: resolveStat(en.hp),
+        cur: 0,
+        atk: resolveStat(en.atk),
+        def: resolveStat(en.def),
+        spd: resolveStat(en.spd),
+        exp: resolveStat(en.exp),
+        // ★ 復活関連の情報
+        respawnLimit: isBoss ? 0 : (en.respawnLimit ?? 3), // BOSS敵は復活しない
+        respawnDelay: en.respawnDelay ?? 5, // デフォルト5秒
+        respawnCount: 0, // 現在の復活回数
+        hidden: false, // 隠れているか
+        hiddenTimer: 0 // 隠れている時間
+      };
+    });
     this.enemies.forEach(e=>{ e.cur=e.hp; e.t=e.spd; });
     this.targetIdx=0;
     this.renderEnemies();
@@ -831,7 +984,6 @@ function router(){
 }
 window.addEventListener('hashchange', router);
 window.addEventListener('DOMContentLoaded', ()=>{
-  document.getElementById('year').textContent = new Date().getFullYear();
   router();
 });
 
@@ -839,7 +991,7 @@ window.addEventListener('DOMContentLoaded', ()=>{
    画面：タイトル
 ------------------------------ */
 function TitleScreen(){}
-TitleScreen.title = 'タイトル';
+TitleScreen.title = '算術の塔';
 TitleScreen.render = () => {
   const saves = SaveSystem.list();
   const diffBtns = CONFIG.difficulties.map(d=>`<button class="button" data-diff="${d.id}">${d.label}</button>`).join('');
@@ -1063,7 +1215,15 @@ BattleScreen.afterRender = () => {
     Store.lastBattle = { enemyName, result }; // result: 'win'|'lose'
 
     if (rewards?.exp) Store.player.exp += rewards.exp;
-    if (result === 'win' && typeof Store.pendingEventId === 'number') {
+    
+    // ★ 追加：敗北時のマップリセット処理
+    if (result === 'lose') {
+      // ステータスはそのまま、秒数を+10秒する
+      Store.elapsedSeconds += 10;
+      // フロアの最初にリセット（特定のマップデータを保全しつつリセット）
+      ensureFloorState(Store.floorIndex);
+      // フロアの開始地点に戻す処理はMapScreenで実施
+    } else if (result === 'win' && typeof Store.pendingEventId === 'number') {
       // ...既存: 撃破カウント処理...
     }
     location.hash = '/map';

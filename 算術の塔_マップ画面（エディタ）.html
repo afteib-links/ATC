@@ -128,6 +128,7 @@
             <div style="display:flex; gap:8px;">
                 <button class="btn" onclick="fetchMapsFromServer()">サーバーから読み込み</button>
                 <button class="btn" onclick="saveCurrentMapToServer()">サーバーへ保存</button>
+                <button class="btn" onclick="saveAllMapsToLocal()">ローカルファイルへ保存</button>
             </div>
         </div>
         <textarea id="output" spellcheck="false" onclick="this.select()"></textarea>
@@ -155,6 +156,8 @@
         <button onclick="applyCtxValue()" class="btn" style="padding: 5px; flex:1;">決定</button>
     </div>
 </div>
+
+<script src="maps.js"></script>
 
 <script>
     let grid = [];
@@ -463,12 +466,42 @@
         const out = 'window.MAPS = ' + JSON.stringify(maps, null, 2) + ';';
         document.getElementById('output').value = out;
     }
+
+    async function saveAllMapsToLocal() {
+        try {
+            const maps = window.__SERVER_MAPS || (window.__LOCAL_MAPS || []);
+            if (!maps || !maps.length) return alert('保存するマップがありません');
+            const put = await fetch('/api/maps', {
+                method: 'POST', headers: {'Content-Type':'application/json'},
+                body: JSON.stringify({ maps })
+            });
+            const ct2 = put.headers.get('content-type') || '';
+            let r2;
+            if (ct2.includes('application/json')) r2 = await put.json(); else r2 = { ok: false, error: await put.text() };
+            if (!r2.ok) throw new Error(r2.error || 'save failed');
+            alert('ローカルの maps.js を更新しました');
+            fetchMapsFromServer();
+        } catch (e) { alert('保存失敗: ' + e.message); }
+    }
     
     function allClear() { if(confirm("初期化しますか？")) resizeGrid(false); }
 
+    // if a local maps.js defines `window.MAPS`, use it as the maps source
+    if (window.MAPS && Array.isArray(window.MAPS)) {
+        window.__SERVER_MAPS = window.MAPS;
+        const sel = document.getElementById('map-select'); sel.innerHTML = '';
+        window.__SERVER_MAPS.forEach((m, idx) => { const opt = document.createElement('option'); opt.value = idx; opt.text = `${m.id} - ${m.name}`; sel.appendChild(opt); });
+        if (window.__SERVER_MAPS.length) { sel.selectedIndex = 0; }
+    }
+
     init();
-    // try to fetch maps list automatically
-    try { fetchMapsFromServer(); } catch(e){}
+    // try to fetch maps list from server if local `maps.js` not present
+    if (!window.__SERVER_MAPS) {
+        try { fetchMapsFromServer(); } catch(e){}
+    } else {
+        // load selected local map into editor
+        try { const sel = document.getElementById('map-select'); if (sel && sel.options.length) loadSelectedMap(); } catch(e){}
+    }
 </script>
 </body>
 </html>

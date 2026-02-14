@@ -467,9 +467,19 @@ class BattleEngine {
   emit(n,p){ (this.handlers[n]||[]).forEach(h=>h(p)); }
 
   mount(container){
+    const effectStyles = `
+      .battle-scope .effect { position: absolute; pointer-events: none; font-size: 60px; font-weight: bold; animation: effectFloat 1.5s ease-out forwards; }
+      .battle-scope .effect-small { font-size: 40px; }
+      .battle-scope .effect-flame { color: #ff6b1a; text-shadow: 0 0 10px #ff6b1a; }
+      .battle-scope .effect-ice { color: #4dd9ff; text-shadow: 0 0 10px #4dd9ff; }
+      .battle-scope .effect-thunder { color: #ffd700; text-shadow: 0 0 10px #ffd700; }
+      .battle-scope .effect-wind { color: #2e8e38; text-shadow: 0 0 10px #2e8e38; }
+      .battle-scope .effect-light { color: #fff; text-shadow: 0 0 15px #fbbf24; }
+      @keyframes effectFloat { 0% { opacity: 1; transform: translateY(0) scale(1); } 100% { opacity: 0; transform: translateY(-80px) scale(0.5); } }
+    `;
     container.innerHTML = `
       <div class="battle-scope">
-        <style>${BATTLE_CSS_SCOPED}</style>
+        <style>${BATTLE_CSS_SCOPED}${effectStyles}</style>
         <div id="game-screen">
           <div id="enemy-field"></div>
           <div id="p-panel">
@@ -698,6 +708,9 @@ class BattleEngine {
         
         this.showFeed(`${this.enemies[this.targetIdx].name}に ${finalDmg}ダメージ！+${this.curProb.rank}★`, 'var(--correct)');
         
+        // ★ ダメージエフェクトを表示
+        this.showDamageEffect(this.enemies[this.targetIdx], this.curProb.op, this.curProb.rank);
+        
         // ★ 麻痺判定（連続麻痺で時間短縮）
         if (damageInfo.paralysisInfo && damageInfo.paralysisInfo.isParalyzed) {
           const paralysisChainCount = this.enemies[this.targetIdx].paralysisChainCount || 0;
@@ -903,6 +916,7 @@ closeLvUp() {
     this.enemies.forEach((e,i)=>{
       if(e.cur<=0) return;
       const div = document.createElement('div');
+      div.id = `enemy-unit-${i}`;
       div.className = `enemy-unit ${i===this.targetIdx?'target':''}`;
       div.onclick = ()=>{ if(e.cur>0){ this.targetIdx=i; this.renderEnemies(); } };
       const timerPercent = (Math.max(0,e.t)/e.spd)*100;
@@ -951,6 +965,60 @@ closeLvUp() {
     f.innerHTML=t; f.style.color=c;
     f.classList.add('show');
     setTimeout(()=>f.classList.remove('show'), 1200);
+  }
+
+  showDamageEffect(enemy, op, rank) {
+    // エフェクトのシンボルとクラスを決定
+    const effectMap = {
+      '+': { symbol: '🔥', class: 'effect-flame' },
+      '-': { symbol: '❄️', class: 'effect-ice' },
+      '×': { symbol: '⚡', class: 'effect-thunder' },
+      '÷': { symbol: '💨', class: 'effect-wind' }
+    };
+    const effect = effectMap[op] || { symbol: '✨', class: 'effect-light' };
+
+    // レベルに応じた表示回数と大きさを決定
+    let effectConfigs = [];
+    if (rank === 1) {
+      effectConfigs = [{ size: 'small', delay: 0 }];
+    } else if (rank === 2) {
+      effectConfigs = [{ size: 'small', delay: 0 }, { size: 'small', delay: 0.2 }];
+    } else if (rank === 3) {
+      effectConfigs = [{ size: 'large', delay: 0 }];
+    } else if (rank === 4) {
+      effectConfigs = [{ size: 'large', delay: 0 }, { size: 'large', delay: 0.2 }];
+    } else if (rank >= 5) {
+      // ランク5以上：ランダムに小×大を5回
+      for (let i = 0; i < 5; i++) {
+        const isSmall = Math.random() < 0.5;
+        effectConfigs.push({ size: isSmall ? 'small' : 'large', delay: i * 0.2 });
+      }
+    }
+
+    // エフェクトを表示
+    const enemyIdx = this.enemies.indexOf(enemy);
+    effectConfigs.forEach(config => {
+      setTimeout(() => {
+        const effectEl = document.createElement('div');
+        effectEl.className = `effect ${config.size === 'small' ? 'effect-small' : ''} ${effect.class}`;
+        effectEl.textContent = effect.symbol;
+        
+        // 敵ユニットの位置を基準にエフェクトを表示
+        const enemyField = this.dom.enemyField;
+        const enemyEl = enemyField.querySelector(`#enemy-unit-${enemyIdx}`);
+        if (enemyEl) {
+          const rect = enemyEl.getBoundingClientRect();
+          const fieldRect = enemyField.getBoundingClientRect();
+          effectEl.style.left = (rect.left - fieldRect.left + rect.width / 2 - 30) + 'px';
+          effectEl.style.top = (rect.top - fieldRect.top + rect.height / 2 - 30) + 'px';
+        }
+        
+        enemyField.appendChild(effectEl);
+        
+        // アニメーション終了後にDOM削除
+        setTimeout(() => effectEl.remove(), 1500);
+      }, config.delay * 1000);
+    });
   }
 }
 
@@ -1085,6 +1153,13 @@ MapScreen.render = () => {
   `;
 };
 MapScreen.afterRender = () => {
+  // ★ 敗北時のフロアリセット処理
+  if (Store.lastBattle?.result === 'lose') {
+    ensureFloorState(Store.floorIndex);
+    Store.floorStates[Store.floorIndex].position = null; // スタート地点に戻す
+    Store.lastBattle = null; // 処理済みフラグ
+  }
+
   const root = document.getElementById('map-root');
   const mapData = getMapData(Store.floorIndex);
   const floorState = ensureFloorState(Store.floorIndex);
@@ -1198,7 +1273,7 @@ MapScreen.afterRender = () => {
   // 直前の戦闘結果（win/lose）があればログ表示してクリア
   if (Store.lastBattle) {
     const { enemyName, result } = Store.lastBattle;
-    map.addLog(`<span style="color:${result==='win' ? '#f8e3a1' : '#fca5a5'}">${enemyName} を${result==='win' ? '倒した' : '退けられなかった'}。</span>`);
+    map.addLog(`<span style="color:${result==='win' ? '#f8e3a1' : '#fca5a5'}">${enemyName} を${result==='win' ? '倒した' : 'に倒されてしまった。<br>輝く光に包まれ飛ばされた'}。</span>`);
     Store.lastBattle = null;
   }
 

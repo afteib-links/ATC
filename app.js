@@ -29,6 +29,12 @@ const CONFIG = {
     paralysisDuration: 5            // 麻痺時間（秒）
   },
   
+  // ★ 追加：敵復活設定
+  respawn: {
+    delay: 30000,  // 復活までの待機時間（ミリ秒、デフォルト30秒）
+    limit: 3       // 復活できる回数（デフォルト3回）
+  },
+  
   // ★ 追加：Gradeごとのステータスアップ数
   statusUpByGrade: {
     "初級": {
@@ -101,7 +107,7 @@ function ensureFloorState(floorIndex){
     Store.floorStates[floorIndex] = {
       steps: 0,
       position: null, // nullならMapEngineがスタートへ
-      defeated: {}  // eventId -> { defeatedCount, lastDefeatedStep, respawnLimit? }
+      defeated: {}  // eventId -> { defeatedAt, respawnDelay, respawnLimit, respawnCount }
     };
   }
   return Store.floorStates[floorIndex];
@@ -658,8 +664,8 @@ class BattleEngine {
         this.opChainCount = 1;
       }
       
-      if(this.enemies[this.targetIdx].cur<=0 || this.enemies[this.targetIdx].hidden) {
-        this.targetIdx = this.enemies.findIndex(e=>e.cur>0 && !e.hidden);
+      if(this.enemies[this.targetIdx].cur<=0) {
+        this.targetIdx = this.enemies.findIndex(e=>e.cur>0);
       }
       if (this.targetIdx === -1) this.handleVictory();
       else {
@@ -703,15 +709,7 @@ class BattleEngine {
           const enemy = this.enemies[this.targetIdx];
           enemy.cur = 0;
           
-          // ★ 復活可能な敵は隠す
-          if (enemy.respawnCount < enemy.respawnLimit) {
-            enemy.hidden = true;
-            enemy.hiddenTimer = enemy.respawnDelay;
-            enemy.respawnCount++;
-            this.showFeed(`${enemy.name}は身を隠した...`, 'var(--gold)');
-          }
-          
-          const alive = this.enemies.findIndex(e=>e.cur>0 && !e.hidden);
+          const alive = this.enemies.findIndex(e=>e.cur>0);
           if(alive === -1) this.handleVictory(); else this.targetIdx = alive;
         }
       }
@@ -848,18 +846,6 @@ closeLvUp() {
   tick(){
     if(this.isPaused || this.p.hp<=0) return;
     this.enemies.forEach((e,i)=>{
-      // ★ 隠れている敵の復活タイマーを更新
-      if (e.hidden) {
-        e.hiddenTimer -= 0.1;
-        if (e.hiddenTimer <= 0) {
-          e.hidden = false;
-          e.cur = e.hp;
-          e.t = e.spd;
-          this.showFeed(`${e.name}が復活した！`, 'var(--gold)');
-        }
-        return; // 隠れている敵は攻撃しない
-      }
-      
       // ★ 麻痺している敵のタイマーを更新
       if (e.paralyzed) {
         e.paralysisTimer -= 0.1;
@@ -906,15 +892,17 @@ closeLvUp() {
   renderEnemies(){
     const f = this.dom.enemyField; f.innerHTML='';
     this.enemies.forEach((e,i)=>{
-      // ★ 隠れている敵や倒された敵を表示しない
-      if(e.cur<=0 || e.hidden) return;
+      if(e.cur<=0) return;
       const div = document.createElement('div');
       div.className = `enemy-unit ${i===this.targetIdx?'target':''}`;
-      div.onclick = ()=>{ if(e.cur>0 && !e.hidden){ this.targetIdx=i; this.renderEnemies(); } };
+      div.onclick = ()=>{ if(e.cur>0){ this.targetIdx=i; this.renderEnemies(); } };
       const timerPercent = (Math.max(0,e.t)/e.spd)*100;
+      // ★ 麻痺状態の敵は視覚的に表示
+      const paralysisLabel = e.paralyzed ? '<div style="color:var(--gold); font-size:8px; font-weight:bold;">⚡麻痺中</div>' : '';
       div.innerHTML = `
         <div class="target-indicator">▼ TARGET</div>
         <div style="font-size:10px; font-weight:bold;">${e.name}</div>
+        ${paralysisLabel}
         <div style="font-size:32px; margin:5px 0;">${e.sprite}</div>
         <div class="bar-outer">
           <div class="hp-text">${Math.floor(e.cur)} / ${e.hp}</div>
@@ -931,24 +919,17 @@ closeLvUp() {
     this.dom.pFloor.textContent = floorData.floor || '';
     const stageData = (floorData.stages||[]).find(s=>s.id===this.currentStage) || (floorData.stages||[])[0];
     const resolveStat = this._resolveStat;
-    this.enemies = stageData.enemies.map(en => {
-      const isBoss = en.name.includes('BOSS') || en.name.includes('ボス');
-      return {
-        ...en,
-        hp: resolveStat(en.hp),
-        cur: 0,
-        atk: resolveStat(en.atk),
-        def: resolveStat(en.def),
-        spd: resolveStat(en.spd),
-        exp: resolveStat(en.exp),
-        // ★ 復活関連の情報
-        respawnLimit: isBoss ? 0 : (en.respawnLimit ?? 3), // BOSS敵は復活しない
-        respawnDelay: en.respawnDelay ?? 5, // デフォルト5秒
-        respawnCount: 0, // 現在の復活回数
-        hidden: false, // 隠れているか
-        hiddenTimer: 0 // 隠れている時間
-      };
-    });
+    this.enemies = stageData.enemies.map(en => ({
+      ...en,
+      hp: resolveStat(en.hp),
+      cur: 0,
+      atk: resolveStat(en.atk),
+      def: resolveStat(en.def),
+      spd: resolveStat(en.spd),
+      exp: resolveStat(en.exp),
+      paralyzed: false,
+      paralysisTimer: 0
+    }));
     this.enemies.forEach(e=>{ e.cur=e.hp; e.t=e.spd; });
     this.targetIdx=0;
     this.renderEnemies();
@@ -1111,15 +1092,9 @@ MapScreen.afterRender = () => {
 	  location.hash = '/map';
 	});
 
-  // 敵の可視制御（撃破後の一時消滅・復活上限）
-  Object.keys(floorState.defeated).forEach(id=>{
-    const rec = floorState.defeated[id];
-    const stepsSince = floorState.steps - (rec.lastDefeatedStep || 0);
-    const respawnLimit = (rec.respawnLimit ?? CONFIG.baseRespawnLimit);
-    const visible = (rec.defeatedCount < respawnLimit) && (stepsSince >= CONFIG.disappearSteps);
-    map.api().setEnemyVisibility(id, visible);
-  });
-  
+  // ★ マップレベルの敵復活管理システムは enterEvent ハンドラで実装済み
+  // （敵戦闘後、battle.on('end')で Store.floorStates[floorIdx].defeated に復活情報を記録）
+	
 	// MapScreen.afterRender() 内で値の反映
 	document.getElementById('ctl-mode')?.addEventListener('change', (e)=>{
 	  Store.settings.controlMode = e.target.value;
@@ -1130,13 +1105,39 @@ MapScreen.afterRender = () => {
 
   // ★ 遭遇処理：戦闘イベントに入る前に “戦う/逃げる” を出す
   map.on('enterEvent', ({ eventId }) => {
+    const floorIdx = Store.floorIndex;
+    const floorState = Store.floorStates[floorIdx];
+    
+    // ★ 復活待機中のイベントをチェック
+    if (floorState?.defeated?.[eventId]) {
+      const defeated = floorState.defeated[eventId];
+      const now = performance.now();
+      const elapsedTime = now - defeated.defeatedAt;
+      
+      // 復活クールダウン中の場合、イベント無視
+      if (elapsedTime < defeated.respawnDelay) {
+        const remainSecs = Math.ceil((defeated.respawnDelay - elapsedTime) / 1000);
+        map.addLog(`<span style="color:#fca5a5">敵がまだ復活中（${remainSecs}秒待機中）...</span>`);
+        return;
+      }
+      
+      // 復活回数を超えた場合、イベント無視（二度と出現しない）
+      if (defeated.respawnCount >= defeated.respawnLimit) {
+        map.addLog(`<span style="color:#93c5fd">この敵は完全に消えてしまった...</span>`);
+        return;
+      }
+      
+      // 復活回数をインクリメント
+      defeated.respawnCount++;
+    }
+    
     const floorData = (typeof STAGE_MASTER !== 'undefined' ? STAGE_MASTER[Store.floorIndex] : null) || {};
     const stageData = (floorData.stages || []).find(s => s.id === eventId) || {};
     const stageLabel = stageData.title || floorData.floor || `Stage ${eventId}`;
     const enemyName = (stageData.enemies && stageData.enemies[0]?.name) || '???';
 
     // テキスト生成（複数敵は “先頭の敵の名 など” 表記）
-    const encText = `（<b>${stageLabel}</b>）にたどり着くと、<b>${enemyName}${(stageData.enemies?.length||0) > 1 ? ' など' : ''}</b>が現れた。<br>どうする？`;
+    const encText = `（<b>${stageLabel}</b>）にたどり着くと、<b>「${enemyName}${(stageData.enemies?.length||0) > 1 ? '」 など' : '」'}</b>が現れた。<br>どうする？`;
 
     const $ov = document.getElementById('pre-battle-overlay');
     const $tx = document.getElementById('encounter-text');
@@ -1224,8 +1225,32 @@ BattleScreen.afterRender = () => {
       ensureFloorState(Store.floorIndex);
       // フロアの開始地点に戻す処理はMapScreenで実施
     } else if (result === 'win' && typeof Store.pendingEventId === 'number') {
-      // ...既存: 撃破カウント処理...
+      // ★ 敷詰：バトル勝利時に敵の復活情報をStore.floorStates に記録
+      const stageId = Math.max(1, Math.min(parseInt(Store.pendingEventId, 10), 10));
+      const floorIdx = Store.floorIndex;
+      ensureFloorState(floorIdx);
+      
+      if (!Store.floorStates[floorIdx].defeated) {
+        Store.floorStates[floorIdx].defeated = {};
+      }
+      
+      // BOSSか判定（敵名に 'BOSS' または 'ボス' を含む場合は復活しない）
+      const isBoss = enemyName.includes('BOSS') || enemyName.includes('ボス');
+      
+      if (!isBoss) {
+        // 復活情報を記録
+        Store.floorStates[floorIdx].defeated[stageId] = {
+          defeatedAt: performance.now(),
+          respawnDelay: CONFIG.respawn?.delay || 30000, // デフォルト30秒
+          respawnLimit: CONFIG.respawn?.limit || 3,      // デフォルト3回
+          respawnCount: 0
+        };
+      }
     }
+    
+    // ★ 重要：戦闘終了後に pendingEventId をクリア（敵が複数回戦えてしまう問題を修正）
+    Store.pendingEventId = null;
+    
     location.hash = '/map';
   });
 

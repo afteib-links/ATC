@@ -257,8 +257,8 @@ class MapEngine {
         }
         this.updateUI();
       }
-    };
-  }
+      };
+    }
 
   getRawCell(x,y){
     const layout = this.mapData.layout;
@@ -477,7 +477,7 @@ class BattleEngine {
       .battle-scope .effect-light { color: #fff; text-shadow: 0 0 15px #fbbf24; }
       @keyframes effectFloat { 0% { opacity: 1; transform: translateY(0) scale(1); } 100% { opacity: 0; transform: translateY(-80px) scale(0.5); } }
     `;
-    container.innerHTML = `
+      container.innerHTML = `
       <div class="battle-scope">
         <style>${BATTLE_CSS_SCOPED}${effectStyles}</style>
         <div id="game-screen">
@@ -647,7 +647,7 @@ class BattleEngine {
   }
   discardCard(idx){
     const penalty = Math.max(5, Math.floor(this.p.atk*0.5));
-    this.p.hp -= penalty;
+    this.p.hp = Math.max(1, this.p.hp - penalty);
     this.showFeed(`破棄ダメージ: ${penalty}`, 'var(--red)');
     const cont = this.dom.handRow.querySelector(`#card-cont-${idx}`);
     const newData = this.generateCardData();
@@ -745,7 +745,7 @@ class BattleEngine {
       this.showFeed(`MISS! (残り:${3-this.missCount})`, 'var(--wrong)');
       if(this.missCount >= 3){
         const penalty = Math.max(5, Math.floor(this.p.atk*0.5));
-        this.p.hp -= penalty;
+        this.p.hp = Math.max(1, this.p.hp - penalty);
         this.showFeed(`3ミス！正解は ${this.curProb.a}<br>ペナルティ: ${penalty}`, 'var(--red)');
         this.resetTurn();
       }
@@ -1002,6 +1002,8 @@ closeLvUp() {
         const effectEl = document.createElement('div');
         effectEl.className = `effect ${config.size === 'small' ? 'effect-small' : ''} ${effect.class}`;
         effectEl.textContent = effect.symbol;
+        // 明示的に絶対配置をセット（親が position:relative であることが必要）
+        effectEl.style.position = 'absolute';
         
         // 敵ユニットの位置を基準にエフェクトを表示
         const enemyField = this.dom.enemyField;

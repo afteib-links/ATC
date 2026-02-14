@@ -1,0 +1,330 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <title>プロ・マップビルダー - シンボル置換版</title>
+    <style>
+        :root {
+            --bg: #0f1115; --panel: #1c1f26; --accent: #00aaff;
+            --text: #d1d1d1; --border: #30363d; --danger: #da3633;
+            --cell-size: 26px;
+        }
+
+        body {
+            background: var(--bg); color: var(--text); font-family: 'Segoe UI', sans-serif;
+            display: flex; height: 100vh; margin: 0; overflow: hidden;
+            user-select: none;
+        }
+
+        .sidebar {
+            width: 30%; min-width: 320px; max-width: 400px;
+            background: var(--panel); border-right: 1px solid var(--border);
+            padding: 12px; display: flex; flex-direction: column; gap: 12px;
+            box-sizing: border-box; overflow-y: auto; z-index: 10;
+        }
+
+        .main-editor {
+            width: 70%; flex: 1; padding: 10px; display: flex; flex-direction: column;
+            box-sizing: border-box; background: var(--bg); position: relative;
+        }
+
+        h2 { font-size: 12px; margin: 0; color: var(--accent); letter-spacing: 1px; border-bottom: 1px solid #333; padding-bottom: 2px; }
+        .section-group { display: flex; flex-direction: column; gap: 8px; }
+        .meta-group { display: flex; flex-direction: column; gap: 3px; }
+        .meta-group label { font-size: 10px; font-weight: bold; color: #888; }
+        
+        input, textarea { background: #0d1117; color: #fff; border: 1px solid var(--border); border-radius: 4px; padding: 6px; font-size: 13px; outline: none; }
+        input:focus { border-color: var(--accent); }
+
+        .btn { background: var(--accent); color: #fff; border: none; padding: 8px; border-radius: 4px; cursor: pointer; font-weight: bold; font-size: 12px; }
+        .btn-danger { background: var(--danger); width: 100%; margin-top: 5px; }
+
+        .palette { display: flex; flex-wrap: wrap; gap: 4px; }
+        .p-item { padding: 4px 8px; border: 1px solid var(--border); border-radius: 4px; cursor: pointer; font-size: 11px; background: #2a2a32; position: relative; }
+        .p-item.active { border-color: var(--accent); background: var(--accent); color: #000; font-weight: bold; }
+        .key-badge { position: absolute; top: -5px; right: -5px; background: #444; color: #eee; font-size: 8px; padding: 1px 3px; border-radius: 3px; }
+
+        .editor-container { background: #000; border: 1px solid var(--border); border-radius: 4px; position: relative; overflow: hidden; flex: 1; display: flex; flex-direction: column; }
+        .grid-header-row { display: flex; flex-shrink: 0; background: #1c1f26; }
+        .grid-main-row { display: flex; flex: 1; overflow: hidden; }
+        .corner { width: 31px; height: 26px; background: #1c1f26; border-right: 1px solid #333; border-bottom: 1px solid #333; flex-shrink: 0; }
+        .col-index { display: flex; position: relative; gap: 1px; border-bottom: 1px solid #333; }
+        .row-index { display: flex; flex-direction: column; position: relative; gap: 1px; background: #1c1f26; border-right: 1px solid #333; }
+        .idx-label { width: var(--cell-size); height: var(--cell-size); display: flex; align-items: center; justify-content: center; font-size: 9px; color: #666; font-family: monospace; }
+        
+        .scroll-viewer { overflow: auto; flex: 1; }
+        #grid-canvas { display: grid; gap: 1px; background: #333; width: fit-content; }
+        .cell { width: var(--cell-size); height: var(--cell-size); background: #1c1f26; display: flex; align-items: center; justify-content: center; cursor: crosshair; font-size: 10px; font-weight: bold; }
+        
+        /* セルカラー設定 */
+        .c-x { background: rgba(0, 170, 255, 0.2); color: var(--accent); }
+        .c-0 { background: rgba(255, 255, 255, 0.1); }
+        .c-S { background: #238636; color: white; }
+        .c-G { background: #da3633; color: white; }
+        .c-ev { background: #f0883e; color: white; }
+        .c-custom { background: #8957e5; color: white; }
+
+        #ctx-menu { position: fixed; display: none; background: #2d333b; border: 1px solid var(--accent); border-radius: 8px; z-index: 10000; padding: 10px; width: 150px; }
+        #output { height: 110px; font-family: 'Consolas', monospace; font-size: 10px; color: #00ff66; margin-top: 4px; user-select: text; }
+    </style>
+</head>
+<body>
+
+<div class="sidebar">
+    <div class="section-group">
+        <h2>パレット</h2>
+        <div class="meta-group"><label>自動イベント開始番号</label><input type="number" id="next-ev" value="11"></div>
+        <div class="palette" id="palette">
+            <div class="p-item active" data-val="x">道(x) <span class="key-badge">X</span></div>
+            <div class="p-item" data-val="0">部屋(c) <span class="key-badge">C</span></div>
+            <div class="p-item" data-val="S">START(s) <span class="key-badge">S</span></div>
+            <div class="p-item" data-val="G">GOAL(g) <span class="key-badge">G</span></div>
+            <div class="p-item" data-val="AUTO">自動(A) <span class="key-badge">A</span></div>
+            <div class="p-item" data-val=" ">消し(z) <span class="key-badge">Z</span></div>
+            <div class="p-item" data-val="1">1 <span class="key-badge">1</span></div>
+            <div class="p-item" data-val="2">2 <span class="key-badge">2</span></div>
+            <div class="p-item" data-val="3">3 <span class="key-badge">3</span></div>
+            <div class="p-item" data-val="4">4 <span class="key-badge">4</span></div>
+            <div class="p-item" data-val="5">5 <span class="key-badge">5</span></div>
+            <div class="p-item" data-val="6">6 <span class="key-badge">6</span></div>
+            <div class="p-item" data-val="7">7 <span class="key-badge">7</span></div>
+            <div class="p-item" data-val="8">8 <span class="key-badge">8</span></div>
+            <div class="p-item" data-val="9">9 <span class="key-badge">9</span></div>
+            <div class="p-item" data-val="10">10 <span class="key-badge">0</span></div>
+        </div>
+    </div>
+    <div class="section-group">
+        <h2>カスタムタイル追加</h2>
+        <div style="display: flex; gap: 5px;"><input type="text" id="custom-label" placeholder="文字など.." style="flex:1"><button onclick="addCustomButton()" class="btn">追加</button></div>
+    </div>
+    <div class="section-group">
+        <h2>サイズ変更</h2>
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+            <div class="meta-group"><label>ROWS</label><input type="number" id="rows" value="15" onchange="resizeGrid(true)"></div>
+            <div class="meta-group"><label>COLS</label><input type="number" id="cols" value="15" onchange="resizeGrid(true)"></div>
+        </div>
+    </div>
+    <div class="section-group">
+        <h2>管理</h2>
+        <button onclick="allClear()" class="btn btn-danger">すべてクリア</button>
+    </div>
+    <div class="section-group">
+        <h2>名称 / ID</h2>
+        <input type="text" id="map-name" value="はじまりの場所" oninput="updateOutput()">
+        <input type="text" id="map-id" value="floor_1" oninput="updateOutput()" style="margin-top:5px;">
+    </div>
+    <div class="section-group">
+        <h2>データ入出力</h2>
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px;">
+            <button class="btn" onclick="importData()">インポート</button>
+            <button class="btn" onclick="exportData()">エクスポート</button>
+        </div>
+        <textarea id="output" spellcheck="false" onclick="this.select()"></textarea>
+    </div>
+</div>
+
+<div class="main-editor">
+    <div class="editor-container">
+        <div class="grid-header-row"><div class="corner"></div><div id="col-labels" class="col-index"></div></div>
+        <div class="grid-main-row">
+            <div id="row-labels" class="row-index"></div>
+            <div class="scroll-viewer" id="main-scroll" onscroll="syncScroll()">
+                <div id="grid-canvas"></div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div id="ctx-menu">
+    <div id="ctx-info" style="font-size:10px; color:var(--accent); margin-bottom:8px;"></div>
+    <button class="ctx-btn" onclick="applyCtx('x')">道 (x)</button>
+    <button class="ctx-btn" onclick="applyCtx('0')">部屋 (0)</button>
+    <div class="ctx-input-row" style="display:flex; gap:5px; padding-top:5px; border-top:1px solid #444;">
+        <input type="number" id="ctx-num-input" style="width: 60px;">
+        <button onclick="applyCtxValue()" class="btn" style="padding: 5px; flex:1;">決定</button>
+    </div>
+</div>
+
+<script>
+    let grid = [];
+    let currentMode = 'x';
+    let targetCell = null;
+    let isDrawing = false;
+
+    const keyMap = {'x':'x','c':'0','s':'S','g':'G','a':'AUTO','z':' ','1':'1','2':'2','3':'3','4':'4','5':'5','6':'6','7':'7','8':'8','9':'9','0':'10'};
+
+    function init() {
+        resizeGrid(false);
+        document.addEventListener('keydown', (e) => {
+            if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+            const mode = keyMap[e.key.toLowerCase()];
+            if (mode) selectTile(mode);
+        });
+        document.addEventListener('mouseup', () => isDrawing = false);
+        document.getElementById('palette').addEventListener('mousedown', (e) => {
+            const item = e.target.closest('.p-item');
+            if(!item) return;
+            selectTile(item.dataset.val);
+        });
+        window.addEventListener('mousedown', e => { if(!e.target.closest('#ctx-menu')) hideCtx(); });
+    }
+
+    function selectTile(val) {
+        currentMode = val;
+        document.querySelectorAll('.p-item').forEach(el => el.classList.toggle('active', el.dataset.val === val));
+    }
+
+    function resizeGrid(keepContent) {
+        const r = parseInt(document.getElementById('rows').value) || 1;
+        const c = parseInt(document.getElementById('cols').value) || 1;
+        let newGrid = Array.from({ length: r }, () => Array(c).fill(" "));
+        if (keepContent && grid.length > 0) {
+            for (let y = 0; y < Math.min(r, grid.length); y++) {
+                for (let x = 0; x < Math.min(c, grid[y].length); x++) newGrid[y][x] = grid[y][x];
+            }
+        }
+        grid = newGrid;
+        renderGrid();
+    }
+
+    function renderGrid() {
+        const canvas = document.getElementById('grid-canvas');
+        const colLabels = document.getElementById('col-labels');
+        const rowLabels = document.getElementById('row-labels');
+        const r = grid.length, c = grid[0].length;
+        colLabels.innerHTML = ''; rowLabels.innerHTML = '';
+        for(let i=0; i<c; i++) colLabels.innerHTML += `<div class="idx-label">${i}</div>`;
+        for(let i=0; i<r; i++) rowLabels.innerHTML += `<div class="idx-label">${i}</div>`;
+        canvas.style.gridTemplateColumns = `repeat(${c}, 1fr)`;
+        canvas.innerHTML = '';
+        for (let y = 0; y < r; y++) {
+            for (let x = 0; x < c; x++) {
+                const val = grid[y][x];
+                const cell = document.createElement('div');
+                cell.className = `cell ${getCellClass(val)}`;
+                cell.innerText = val === " " ? "" : val;
+                cell.addEventListener('mousedown', (e) => {
+                    if (e.button === 2) { e.preventDefault(); e.stopPropagation(); showCtxMenu(e, x, y); }
+                    else { isDrawing = true; handleCellInput(x, y); }
+                });
+                cell.addEventListener('mouseenter', () => { if (isDrawing && currentMode !== 'AUTO') handleCellInput(x, y); });
+                cell.oncontextmenu = e => e.preventDefault();
+                canvas.appendChild(cell);
+            }
+        }
+        updateOutput();
+    }
+
+    function getCellClass(val) {
+        if(val==='x') return 'c-x'; if(val==='0') return 'c-0'; if(val==='S') return 'c-S'; if(val==='G') return 'c-G';
+        if(!isNaN(val) && val!==' ') return 'c-ev'; return val!==' ' ? 'c-custom' : '';
+    }
+
+    function handleCellInput(x, y) {
+        let val = currentMode;
+        if(currentMode === 'AUTO') {
+            const num = document.getElementById('next-ev');
+            val = num.value; num.value = parseInt(val) + 1;
+        }
+        grid[y][x] = val;
+        renderGrid(); // 表示更新
+    }
+
+    function updateOutput() {
+        const name = document.getElementById('map-name').value;
+        const id = document.getElementById('map-id').value;
+        
+        // --- シンボル置換ロジック ---
+        let mapping = {};
+        let symbolCode = 65; // 'A' から開始
+        
+        const encodedLayout = grid.map(row => {
+            return row.map(cell => {
+                const val = cell.trim();
+                // 1文字(x, 0, S, G, 1-9)以外、または10以上の数値の場合
+                if (val !== "" && val !== "x" && val !== "0" && val !== "S" && val !== "G" && (isNaN(val) || parseInt(val) >= 10)) {
+                    if (!mapping[val]) {
+                        const symbol = String.fromCharCode(symbolCode++);
+                        mapping[val] = symbol;
+                    }
+                    return mapping[val];
+                }
+                return val === "" ? " " : val;
+            }).join("");
+        });
+
+        // 逆引きマッピングの作成
+        let reverseMapping = {};
+        for (let key in mapping) reverseMapping[mapping[key]] = isNaN(key) ? key : parseInt(key);
+
+        const layoutStr = encodedLayout.map(line => `        "${line}"`).join(",\n");
+        const mappingStr = JSON.stringify(reverseMapping, null, 4).replace(/\n/g, "\n    ");
+
+        document.getElementById('output').value = `const MAP_DATA = {\n    id: "${id}",\n    name: "${name}",\n    layout: [\n${layoutStr}\n    ],\n    mapping: ${mappingStr}\n};`;
+    }
+
+    function showCtxMenu(e, x, y) {
+        targetCell = {x, y};
+        const menu = document.getElementById('ctx-menu');
+        const numIn = document.getElementById('ctx-num-input');
+        document.getElementById('ctx-info').innerText = `座標: [${x}, ${y}]`;
+        numIn.value = (!isNaN(grid[y][x]) && grid[y][x] !== " ") ? grid[y][x] : "";
+        menu.style.display = 'block'; menu.style.left = e.clientX + 'px'; menu.style.top = e.clientY + 'px';
+        setTimeout(() => numIn.focus(), 50);
+    }
+
+    function applyCtx(val) { if(targetCell) { grid[targetCell.y][targetCell.x] = val; renderGrid(); } hideCtx(); }
+    function applyCtxValue() { applyCtx(document.getElementById('ctx-num-input').value || " "); }
+    function hideCtx() { document.getElementById('ctx-menu').style.display = 'none'; }
+    function syncScroll() {
+        const scroll = document.getElementById('main-scroll');
+        document.getElementById('col-labels').style.transform = `translateX(${-scroll.scrollLeft}px)`;
+        document.getElementById('row-labels').style.transform = `translateY(${-scroll.scrollTop}px)`;
+    }
+
+    function exportData() {
+        const out = document.getElementById('output');
+        out.select(); document.execCommand('copy');
+        alert("クリップボードにコピーしました");
+    }
+
+    function importData() {
+        try {
+            const raw = document.getElementById('output').value;
+            const layoutMatch = raw.match(/layout:\s*\[([\s\S]*?)\]/);
+            const mappingMatch = raw.match(/mapping:\s*(\{[\s\S]*?\})/);
+            const nameMatch = raw.match(/name:\s*"(.*?)"/);
+            const idMatch = raw.match(/id:\s*"(.*?)"/);
+
+            if (!layoutMatch) return;
+            
+            let mapping = mappingMatch ? JSON.parse(mappingMatch[1]) : {};
+            const rowsStr = layoutMatch[1].trim().split(',').map(r => r.trim().replace(/^"|"$/g, ''));
+            
+            grid = rowsStr.map(rowLine => {
+                return rowLine.split('').map(char => mapping[char] ? mapping[char].toString() : char);
+            });
+
+            if(nameMatch) document.getElementById('map-name').value = nameMatch[1];
+            if(idMatch) document.getElementById('map-id').value = idMatch[1];
+            document.getElementById('rows').value = grid.length;
+            document.getElementById('cols').value = grid[0].length;
+            renderGrid();
+        } catch(e) { alert("インポートエラー: " + e.message); }
+    }
+
+    function addCustomButton() {
+        const label = document.getElementById('custom-label').value;
+        if(!label) return;
+        const div = document.createElement('div');
+        div.className = 'p-item'; div.dataset.val = label; div.innerText = label;
+        document.getElementById('palette').appendChild(div);
+        document.getElementById('custom-label').value = '';
+    }
+
+    function allClear() { if(confirm("初期化しますか？")) resizeGrid(false); }
+
+    init();
+</script>
+</body>
+</html>

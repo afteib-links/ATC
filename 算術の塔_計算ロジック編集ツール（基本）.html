@@ -1,0 +1,312 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <title>Math Logic Builder v5.4</title>
+    <style>
+        :root { --primary: #2563eb; --bg: #f1f5f9; --border: #e2e8f0; --accent: #10b981; }
+        body { font-family: 'Segoe UI', sans-serif; background: var(--bg); margin: 0; display: flex; flex-direction: column; height: 100vh; color: #1e293b; overflow: hidden; font-size: 13px; }
+        header { background: #1e293b; color: white; padding: 0.5rem 1.5rem; display: flex; justify-content: space-between; align-items: center; height: 50px; flex-shrink: 0; }
+        main { display: flex; flex: 1; overflow: hidden; }
+        .sidebar { width: 220px; border-right: 1px solid var(--border); background: white; display: flex; flex-direction: column; flex-shrink: 0; }
+        .section-container { flex: 1; display: flex; flex-direction: column; overflow: hidden; border-bottom: 2px solid var(--bg); }
+        .section-title { background: #f8fafc; padding: 8px 12px; font-size: 0.7rem; font-weight: bold; color: #64748b; border-bottom: 1px solid var(--border); }
+        .scroll-area { flex: 1; overflow-y: auto; }
+        .list-item { display: flex; align-items: center; padding: 6px 12px; cursor: pointer; border-bottom: 1px solid #f8fafc; font-size: 0.85rem; }
+        .list-item:hover { background: #f1f5f9; }
+        .list-item.active { background: #eff6ff; border-left: 4px solid var(--primary); color: var(--primary); font-weight: bold; }
+        .genre-badge { background: #e2e8f0; border-radius: 4px; padding: 1px 5px; margin-right: 8px; font-family: monospace; font-size: 0.75rem; min-width: 20px; text-align: center; }
+        .ratio-input { width: 40px; text-align: center; padding: 1px; border: 1px solid #ddd; border-radius: 3px; font-size: 0.8rem; margin-left: auto; }
+        .editor-area { flex: 1; padding: 10px 15px; overflow-y: auto; background: white; }
+        .lv-row { border: 1px solid var(--border); border-radius: 6px; padding: 6px 10px; margin-bottom: 6px; display: flex; align-items: center; gap: 10px; }
+        .lv-num { width: 35px; font-weight: bold; color: #64748b; font-size: 0.9rem; text-align: center; flex-shrink: 0; }
+        .logic-grid { display: grid; grid-template-columns: 1.2fr 1fr 0.8fr 1.2fr; gap: 8px; flex: 1; align-items: center; }
+        .input-unit { display: flex; flex-direction: column; gap: 2px; }
+        .input-unit label { font-size: 0.65rem; font-weight: bold; color: #94a3b8; }
+        textarea.compact { height: 45px; font-size: 0.8rem; padding: 4px; border-radius: 4px; border: 1px solid var(--border); font-family: monospace; resize: none; width: 100%; box-sizing: border-box; }
+        .bg-vars { background: #fafafa; }
+        .bg-disp { background: #fffcf0; }
+        .bg-ans { background: #f0fff4; }
+        .preview-flex { display: flex; align-items: center; gap: 5px; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 4px; padding: 4px; height: 45px; overflow: hidden; }
+        .preview-results { flex: 1; font-size: 0.7rem; line-height: 1.1; overflow-y: auto; height: 100%; color: #475569; }
+        .btn-refresh { background: none; border: none; color: #94a3b8; cursor: pointer; padding: 2px; border-radius: 3px; font-size: 14px; }
+        .io-area { width: 220px; border-left: 1px solid var(--border); background: #f8fafc; display: flex; flex-direction: column; padding: 10px; flex-shrink: 0; }
+        #ioTextarea { flex: 1; font-size: 10px; font-family: monospace; white-space: pre; overflow: scroll; margin-top: 8px; border: 1px solid #ddd; width: 100%; box-sizing: border-box; }
+        .btn { cursor: pointer; border: none; border-radius: 4px; padding: 4px 10px; font-size: 0.8rem; font-weight: bold; }
+        .btn-primary { background: var(--primary); color: white; }
+        .btn-accent { background: var(--accent); color: white; }
+        .btn-del { color: #ccc; background: none; font-size: 1rem; border:none; cursor:pointer; }
+    </style>
+</head>
+<body>
+
+<header>
+    <div style="font-weight: bold;">Math Logic Builder <span style="font-weight: normal; font-size: 0.8rem;">v5.4 Pro</span></div>
+    <div style="display: flex; gap: 8px;">
+        <button class="btn" style="background: #64748b; color: white;" onclick="importData()">Import</button>
+        <button class="btn btn-accent" onclick="exportData()">Export JS</button>
+    </div>
+</header>
+
+<main>
+    <div class="sidebar">
+        <div class="section-container">
+            <div class="section-title">GRADE</div>
+            <div class="scroll-area" id="gradeList"></div>
+            <div style="padding: 5px 10px;"><button class="btn btn-primary" style="width:100%; font-size:0.75rem;" onclick="addGrade()">+ グレード</button></div>
+        </div>
+        <div class="section-container">
+            <div class="section-title">GENRES & RATIOS</div>
+            <div class="scroll-area" id="genreList"></div>
+            <div style="padding: 5px 10px;"><button class="btn btn-primary" style="width:100%; font-size:0.75rem;" onclick="addGenre()">+ ジャンル</button></div>
+        </div>
+    </div>
+    <div class="editor-area" id="editorRoot" style="display:none;">
+        <div id="logicForms"></div>
+    </div>
+    <div class="io-area">
+        <label style="font-size: 0.7rem; font-weight: bold;">Final Output (JS)</label>
+        <textarea id="ioTextarea"></textarea>
+    </div>
+</main>
+
+<script>
+let GRADES = {};
+let currentGrade = null;
+let currentGenre = null;
+window.rand = (min, max) => Math.floor(Math.random() * (max - min + 1)) + min;
+
+// --- グレード×レベルに合わせた高品質ロジックの生成 ---
+function getInitialData() {
+    const data = {};
+    const gradeNames = ['初級', '中級', '上級', '超級', '極級'];
+    const ops = ['+', '-', '×', '÷'];
+    
+    gradeNames.forEach((g, gIdx) => {
+        data[g] = { ops: [...ops], ratios: [0.3, 0.3, 0.2, 0.2], logic: {} };
+        ops.forEach(op => {
+            data[g].logic[op] = {};
+            for(let lv=1; lv<=5; lv++) {
+                let v="", d="", a="";
+                // 難易度調整用係数
+                const base = (gIdx + 1); 
+
+                if(op === '+') {
+                    if(lv <= 2) v = `a=rand(1,${base*10}), b=rand(1,${base*10})`;
+                    else if(lv <= 4) v = `a=rand(10,${base*50}), b=rand(10,${base*50})`;
+                    else v = `a=rand(100,${base*200}), b=rand(100,${base*200}), c=rand(1,50)`;
+                    d = lv < 5 ? `\${a}+\${b}` : `\${a}+\${b}+\${c}`;
+                    a = lv < 5 ? `a+b` : `a+b+c`;
+                } else if(op === '-') {
+                    v = `a=rand(${base*15*lv}, ${base*30*lv}), b=rand(1, ${base*14*lv})`;
+                    d = `\${a}-\${b}`;
+                    a = `a-b`;
+                } else if(op === '×') {
+                    if(lv === 1) v = `a=rand(2,5), b=rand(2,5)`;
+                    else if(lv <= 3) v = `a=rand(2,9), b=rand(2,9)`;
+                    else v = `a=rand(11,${10+base*5}), b=rand(2,9)`;
+                    d = `\${a}×\${b}`;
+                    a = `a*b`;
+                } else if(op === '÷') {
+                    let ansRange = lv * base * 3;
+                    v = `ans=rand(2,${ansRange}), b=rand(2,${5+gIdx})`;
+                    d = `\${ans*b}÷\${b}`;
+                    a = `ans`;
+                }
+                data[g].logic[op][lv] = `${v}|\`${d}\`|${a}`;
+            }
+        });
+    });
+    return data;
+}
+
+function init() {
+    GRADES = getInitialData();
+    renderGradeList();
+    selectGrade('初級');
+}
+
+// --- UI制御 ---
+function renderGradeList() {
+    const list = document.getElementById('gradeList');
+    list.innerHTML = '';
+    Object.keys(GRADES).forEach(g => {
+        const div = document.createElement('div');
+        div.className = `list-item ${currentGrade === g ? 'active' : ''}`;
+        div.innerHTML = `<span style="flex:1">${g}</span><button class="btn-del" onclick="deleteGrade('${g}'); event.stopPropagation();">×</button>`;
+        div.onclick = () => selectGrade(g);
+        list.appendChild(div);
+    });
+}
+
+function selectGrade(name) {
+    currentGrade = name;
+    renderGradeList();
+    const data = GRADES[name];
+    const list = document.getElementById('genreList');
+    list.innerHTML = '';
+    data.ops.forEach((op, idx) => {
+        const div = document.createElement('div');
+        div.className = `list-item ${currentGenre === op ? 'active' : ''}`;
+        div.innerHTML = `<span class="genre-badge">${op}</span><input type="number" step="0.1" class="ratio-input" value="${data.ratios[idx]}" onchange="updateRatio('${op}', this.value)" onclick="event.stopPropagation()"><button class="btn-del" onclick="deleteGenre('${op}'); event.stopPropagation();">×</button>`;
+        div.onclick = () => selectGenre(op);
+        list.appendChild(div);
+    });
+    if(!currentGenre || !data.ops.includes(currentGenre)) selectGenre(data.ops[0]);
+}
+
+function selectGenre(op) {
+    currentGenre = op;
+    document.querySelectorAll('#genreList .list-item').forEach(el => el.classList.toggle('active', el.querySelector('.genre-badge').innerText === op));
+    document.getElementById('editorRoot').style.display = 'block';
+    renderLogicEditor();
+}
+
+function renderLogicEditor() {
+    const container = document.getElementById('logicForms');
+    container.innerHTML = '';
+    const opLogic = GRADES[currentGrade].logic[currentGenre];
+    for (let lv = 1; lv <= 5; lv++) {
+        const raw = opLogic[lv] || "a=rand(1,10)|`${a}`|a";
+        const [v, d, a] = raw.split('|');
+        const div = document.createElement('div');
+        div.className = 'lv-row';
+        div.innerHTML = `
+            <div class="lv-num">Lv.${lv}</div>
+            <div class="logic-grid">
+                <div class="input-unit"><label>変数 (a=1, b=2)</label>
+                    <textarea id="v_${lv}" class="compact bg-vars" oninput="save(${lv})">${v}</textarea></div>
+                <div class="input-unit"><label>表示 (\${a}+\${b})</label>
+                    <textarea id="d_${lv}" class="compact bg-disp" oninput="save(${lv})">${d}</textarea></div>
+                <div class="input-unit"><label>答え</label>
+                    <textarea id="a_${lv}" class="compact bg-ans" oninput="save(${lv})">${a}</textarea></div>
+                <div class="input-unit"><label>プレビュー</label>
+                    <div class="preview-flex"><div class="preview-results" id="pre_${lv}"></div><button class="btn-refresh" onclick="test(${lv})">🔄</button></div>
+                </div>
+            </div>`;
+        container.appendChild(div);
+        test(lv);
+    }
+}
+
+function save(lv) {
+    GRADES[currentGrade].logic[currentGenre][lv] = `${document.getElementById(`v_${lv}`).value}|${document.getElementById(`d_${lv}`).value}|${document.getElementById(`a_${lv}`).value}`;
+    test(lv);
+}
+
+// --- 実行コア (const補完ロジック) ---
+function test(lv) {
+    const vRaw = document.getElementById(`v_${lv}`).value;
+    const dRaw = document.getElementById(`d_${lv}`).value;
+    const aRaw = document.getElementById(`a_${lv}`).value;
+    const pre = document.getElementById(`pre_${lv}`);
+    
+    try {
+        // v3同様に、入力された文字列をそのまま Function 内に流し込む
+        // 変数設定の末尾に ; がない場合を想定して補完
+        const vScript = vRaw.trim().endsWith(';') ? vRaw : vRaw + ';';
+        
+        const fn = new Function('rand', `
+            try {
+                ${vScript}
+                const question = ${dRaw}; 
+                const answer = ${aRaw};
+                return { q: question, a: answer };
+            } catch(e) {
+                return { q: 'Error', a: e.message };
+            }
+        `);
+        
+        pre.innerHTML = '';
+        for(let i=0; i<3; i++) {
+            const res = fn(window.rand);
+            if (res.q === 'Error') throw new Error(res.a);
+            pre.innerHTML += `<div>${i+1}: <span>${res.q}</span> = ${res.a}</div>`;
+        }
+    } catch(e) { 
+        pre.innerHTML = `<span style="color:#ef4444; font-size:9px;">Wait... (Input Error)</span>`; 
+    }
+}
+
+
+function exportData() {
+    const exp = JSON.parse(JSON.stringify(GRADES));
+    for(let g in exp) {
+        for(let op in exp[g].logic) {
+            for(let lv in exp[g].logic[op]) {
+                const [vRaw, dRaw, aRaw] = exp[g].logic[op][lv].split('|');
+                
+                // 変数定義の解析ロジックを改善
+                // カンマで分割するが、rand(1,10)のようにカッコ内のカンマは無視する
+                const vSafe = vRaw.split(/,(?![^\(]*\))/).map(s => {
+                    s = s.trim();
+                    if(!s) return '';
+                    // すでに宣言子がある場合はそのまま、ない場合はconstを付与
+                    if(s.match(/^(const|let|var)\s/)) return s + ';';
+                    return 'const ' + s + ';';
+                }).join(' ');
+
+                exp[g].logic[op][lv] = `() => { ${vSafe} return { q: ${dRaw}, a: ${aRaw} }; }`;
+            }
+        }
+    }
+    // 出力を整形して表示
+    document.getElementById('ioTextarea').value = `const GRADES = ${JSON.stringify(exp, null, 4)};`
+        .replace(/"\(\) =>/g, "() =>")
+        .replace(/\\n/g, "\n")
+        .replace(/\\"/g, '"')
+        .replace(/\}"/g, "}");
+}
+
+function importData() {
+    const raw = document.getElementById('ioTextarea').value;
+    try {
+        const code = raw.substring(raw.indexOf('{'), raw.lastIndexOf('}') + 1);
+        const obj = new Function(`return ${code}`)();
+        for(let g in obj) {
+            for(let op in obj[g].logic) {
+                for(let lv in obj[g].logic[op]) {
+                    const s = obj[g].logic[op][lv].toString();
+                    
+                    // インポート時も、カッコ内のカンマを保護しつつ宣言子を剥がす
+                    let v = s.match(/\{([\s\S]*?)return/)[1].trim()
+                             .replace(/(const|let|var)\s/g, '')
+                             .replace(/;/g, ',');
+                    
+                    // 文末の余計なカンマを掃除
+                    v = v.split(/,(?![^\(]*\))/).map(x => x.trim()).filter(x => x).join(', ');
+                    
+                    let q = s.match(/q:\s*([\s\S]*?),\s*a:/)[1].trim();
+                    let a = s.match(/a:\s*([\s\S]*?)\s*\}/)[1].trim();
+                    obj[g].logic[op][lv] = `${v}|${q}|${a}`;
+                }
+            }
+        }
+        GRADES = obj;
+        renderGradeList();
+        selectGrade(Object.keys(GRADES)[0]);
+        alert("Import Success");
+    } catch(e) { 
+        alert("Error: " + e.message); 
+    }
+}
+
+function addGrade() {
+    const n = prompt("グレード名");
+    if(n) { GRADES[n] = { ops: ['+'], ratios: [1.0], logic: { '+': {1:"",2:"",3:"",4:"",5:""} } }; renderGradeList(); selectGrade(n); }
+}
+function deleteGrade(n) { if(confirm('削除？')) { delete GRADES[n]; renderGradeList(); selectGrade(Object.keys(GRADES)[0]); } }
+function addGenre() {
+    const op = prompt("ジャンル名");
+    if(op) { GRADES[currentGrade].ops.push(op); GRADES[currentGrade].ratios.push(0.1); GRADES[currentGrade].logic[op] = {1:"",2:"",3:"",4:"",5:""}; selectGrade(currentGrade); selectGenre(op); }
+}
+function deleteGenre(op) { if(confirm('削除？')) { 
+    const i = GRADES[currentGrade].ops.indexOf(op); GRADES[currentGrade].ops.splice(i, 1); GRADES[currentGrade].ratios.splice(i, 1);
+    delete GRADES[currentGrade].logic[op]; selectGrade(currentGrade);
+}}
+function updateRatio(op, val) { const i = GRADES[currentGrade].ops.indexOf(op); GRADES[currentGrade].ratios[i] = parseFloat(val); }
+
+init();
+</script>
+</body>
+</html>

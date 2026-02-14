@@ -1,0 +1,339 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <title>Math Logic Builder v6.1</title>
+    <style>
+        :root { --primary: #2563eb; --bg: #f1f5f9; --border: #e2e8f0; --accent: #10b981; --view-btn: #8b5cf6; --lv-sep: linear-gradient(90deg, #3b82f6, #8b5cf6); }
+        body { font-family: 'Segoe UI', sans-serif; background: var(--bg); margin: 0; display: flex; flex-direction: column; height: 100vh; color: #1e293b; overflow: hidden; font-size: 11px; }
+        header { background: #1e293b; color: white; padding: 0.5rem 1rem; display: flex; justify-content: space-between; align-items: center; height: 40px; flex-shrink: 0; }
+        main { display: flex; flex: 1; overflow: hidden; }
+        
+        .sidebar { width: 170px; border-right: 1px solid var(--border); background: white; display: flex; flex-direction: column; flex-shrink: 0; }
+        .section-container { flex: 1; display: flex; flex-direction: column; overflow: hidden; border-bottom: 2px solid var(--bg); min-height: 120px; }
+        .section-title { background: #f8fafc; padding: 6px 10px; font-size: 0.7rem; font-weight: bold; color: #64748b; border-bottom: 1px solid var(--border); }
+        .scroll-area { flex: 1; overflow-y: auto; }
+        .list-item { display: flex; align-items: center; padding: 6px 10px; cursor: pointer; border-bottom: 1px solid #f8fafc; }
+        .list-item:hover { background: #f1f5f9; }
+        .list-item.active { background: #eff6ff; border-left: 3px solid var(--primary); color: var(--primary); font-weight: bold; }
+        .list-item.view-active { background: #f5f3ff; border-left: 3px solid var(--view-btn); color: var(--view-btn); font-weight: bold; }
+
+        .editor-area { flex: 1; padding: 10px; overflow: auto; background: white; }
+        .matrix-container { display: flex; gap: 8px; align-items: flex-start; }
+        .matrix-column { min-width: 185px; width: 185px; flex-shrink: 0; display: flex; flex-direction: column; gap: 6px; }
+        .column-header { background: #1e293b; color: white; padding: 5px; text-align: center; font-weight: bold; border-radius: 4px; position: sticky; top: 0; z-index: 10; font-size: 0.8rem; }
+        
+        /* レベル間の区切り線 */
+        .lv-card { border: 1px solid var(--border); border-radius: 4px; padding: 6px; background: #fff; border-top: 1px solid #ccc; }
+        .lv-card.lv-sep { border-top: 4px solid transparent; border-image: var(--lv-sep) 1; }
+        .lv-title { font-size: 0.7rem; font-weight: bold; color: #1e293b; margin-bottom: 4px; display: flex; justify-content: space-between; border-bottom: 1px solid #f1f5f9; }
+        
+        .input-unit { display: flex; flex-direction: column; gap: 1px; margin-bottom: 4px; }
+        .input-unit label { font-size: 0.6rem; font-weight: bold; color: #94a3b8; }
+        textarea.compact { height: 32px; font-size: 0.85rem; padding: 3px 5px; border-radius: 3px; border: 1px solid var(--border); font-family: monospace; resize: none; width: 100%; box-sizing: border-box; }
+        
+        .bg-vars { background: #fafafa; }
+        .bg-disp { background: #fffcf0; }
+        .bg-ans { background: #f0fff4; }
+
+        .preview-box { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 3px; padding: 4px; min-height: 48px; font-size: 0.75rem; color: #475569; position: relative; }
+        .preview-item { border-bottom: 1px dashed #e2e8f0; padding: 1px 0; display: flex; justify-content: space-between; }
+        .btn-refresh { position: absolute; right: -20px; top: 2px; background: none; border: none; cursor: pointer; color: #ccc; font-size: 10px; }
+
+        .io-area { width: 150px; border-left: 1px solid var(--border); background: #f8fafc; display: flex; flex-direction: column; padding: 8px; flex-shrink: 0; }
+        #ioTextarea { flex: 1; font-size: 8px; font-family: monospace; border: 1px solid #ddd; }
+        .btn { cursor: pointer; border: none; border-radius: 4px; padding: 5px 10px; font-size: 0.75rem; font-weight: bold; }
+        .genre-badge { background: #e2e8f0; border-radius: 3px; padding: 1px 5px; margin-right: 5px; font-family: monospace; color: #475569; }
+    </style>
+</head>
+<body>
+
+<header>
+    <div style="font-weight: bold;">算術の塔 Logic Builder v6.1</div>
+    <div style="display: flex; gap: 8px;">
+        <button class="btn" style="background: #64748b; color: white;" onclick="importData()">Import</button>
+        <button class="btn" style="background: var(--accent); color: white;" onclick="exportData()">Export JS</button>
+    </div>
+</header>
+
+<main>
+    <div class="sidebar">
+        <div class="section-container">
+            <div class="section-title">GRADE EDIT</div>
+            <div class="scroll-area" id="gradeList"></div>
+            <div style="padding: 5px;"><button class="btn btn-primary" style="width:100%" onclick="addGrade()">+ グレード追加</button></div>
+        </div>
+        <div class="section-container">
+            <div class="section-title" style="color:var(--view-btn);">GENRE MATRIX</div>
+            <div class="scroll-area" id="genreViewList"></div>
+            <div style="padding: 5px;"><button class="btn" style="width:100%; background:var(--view-btn); color:white;" onclick="addGenre()">+ ジャンル追加</button></div>
+        </div>
+        <div class="section-container" style="min-height: 100px; flex: 0.5;">
+            <div class="section-title" style="color:var(--accent);">LEVEL VIEW</div>
+            <div class="scroll-area" id="levelViewList"></div>
+        </div>
+    </div>
+
+    <div class="editor-area" id="editorRoot">
+        <div id="matrixArea" class="matrix-container"></div>
+    </div>
+
+    <div class="io-area">
+        <label style="font-size: 0.65rem; font-weight: bold;">Output JS</label>
+        <textarea id="ioTextarea"></textarea>
+    </div>
+</main>
+
+<script>
+let GRADES = {};
+let currentGrade = null;
+let currentGenre = '+';
+let currentLevel = null;
+let editMode = 'genre';
+
+window.rand = (min, max) => Math.floor(Math.random() * (max - min + 1)) + min;
+
+function init() {
+    GRADES = getInitialSampleData();
+    renderSidebar();
+    selectGenreView('+');
+}
+
+function getAllAvailableGenres() {
+    const genres = new Set();
+    Object.values(GRADES).forEach(g => { if(g.ops) g.ops.forEach(op => genres.add(op)); });
+    return Array.from(genres);
+}
+
+function renderSidebar() {
+    document.getElementById('gradeList').innerHTML = Object.keys(GRADES).map(g => `<div class="list-item ${editMode==='grade'&&currentGrade===g?'active':''}" onclick="selectGrade('${g}')">${g}</div>`).join('');
+    const genres = getAllAvailableGenres();
+    document.getElementById('genreViewList').innerHTML = genres.map(op => `<div class="list-item ${editMode==='genre'&&currentGenre===op?'view-active':''}" onclick="selectGenreView('${op}')"><span class="genre-badge">${op}</span>一括</div>`).join('');
+    document.getElementById('levelViewList').innerHTML = [1, 2, 3, 4, 5].map(lv => `<div class="list-item ${editMode==='level'&&currentLevel===lv?'active':''}" style="border-left-color:var(--accent)" onclick="selectLevelView(${lv})">Lv.${lv} 横断</div>`).join('');
+}
+
+function selectGrade(n) { editMode='grade'; currentGrade=n; currentLevel=null; renderSidebar(); renderMatrix(); }
+function selectGenreView(op) { editMode='genre'; currentGenre=op; currentLevel=null; renderSidebar(); renderMatrix(); }
+function selectLevelView(lv) { editMode='level'; currentLevel=lv; renderSidebar(); renderMatrix(); }
+
+function renderMatrix() {
+    const container = document.getElementById('matrixArea');
+    if (!container) return; // コンテナがない場合は中断
+    container.innerHTML = '';
+    
+    const targetGrades = (editMode === 'grade') ? [currentGrade] : Object.keys(GRADES);
+    const targetLevels = (editMode === 'level') ? [currentLevel] : [1, 2, 3, 4, 5];
+
+    targetGrades.forEach(gName => {
+        const col = document.createElement('div');
+        col.className = 'matrix-column';
+        col.innerHTML = `<div class="column-header">${gName}</div>`;
+
+        targetLevels.forEach(lv => {
+            const opData = (GRADES[gName] && GRADES[gName].logic[currentGenre]) || {};
+            const raw = opData[lv] || "||";
+            const [v, d, a] = raw.split('|');
+            
+            // 安全なID生成
+            const safeGenre = btoa(unescape(encodeURIComponent(currentGenre))).replace(/=/g, "");
+            const id = `${gName.replace(/\s+/g,'_')}_${safeGenre}_${lv}`;
+            
+            const card = document.createElement('div');
+            card.className = `lv-card ${lv > 1 && !currentLevel ? 'lv-sep' : ''}`;
+            card.innerHTML = `
+                <div class="lv-title">Lv.${lv} <span style="font-size:9px;color:var(--view-btn)">${currentGenre}</span></div>
+                <div class="input-unit"><label>変数</label><textarea id="v_${id}" class="compact bg-vars" oninput="saveRaw('${gName}','${currentGenre}',${lv},'${id}')">${v}</textarea></div>
+                <div class="input-unit"><label>表示</label><textarea id="d_${id}" class="compact bg-disp" oninput="saveRaw('${gName}','${currentGenre}',${lv},'${id}')">${d}</textarea></div>
+                <div class="input-unit"><label>答え</label><textarea id="a_${id}" class="compact bg-ans" oninput="saveRaw('${gName}','${currentGenre}',${lv},'${id}')">${a}</textarea></div>
+                <div class="preview-box" id="pre_${id}"></div>
+            `;
+            col.appendChild(card);
+            
+            // 重要：HTMLがブラウザに認識されるわずかな時間を置いてからプレビューを実行
+            setTimeout(() => testRaw(gName, currentGenre, lv, id), 10);
+        });
+        container.appendChild(col);
+    });
+}
+
+// 修正ポイント: 要素の存在チェックを追加
+function saveRaw(g, o, lv, id) {
+    const vEl = document.getElementById(`v_${id}`);
+    const dEl = document.getElementById(`d_${id}`);
+    const aEl = document.getElementById(`a_${id}`);
+    
+    if(!vEl || !dEl || !aEl) return; // 要素がなければ処理を中断
+
+    if(!GRADES[g].logic[o]) GRADES[g].logic[o] = {};
+    GRADES[g].logic[o][lv] = `${vEl.value}|${dEl.value}|${aEl.value}`;
+    testRaw(g, o, lv, id);
+}
+
+function testRaw(g, o, lv, id) {
+    const vEl = document.getElementById(`v_${id}`);
+    const dEl = document.getElementById(`d_${id}`);
+    const aEl = document.getElementById(`a_${id}`);
+    const pre = document.getElementById(`pre_${id}`);
+    
+    // 要素が見つからない場合は処理しない（エラー防止）
+    if (!vEl || !dEl || !aEl || !pre) return;
+
+    const vRaw = vEl.value.trim();
+    const dRaw = dEl.value.trim();
+    const aRaw = aEl.value.trim();
+    
+    // 全て空ならプレビューを表示しない
+    if (!vRaw && !dRaw && !aRaw) {
+        pre.innerHTML = "<i style='color:#ccc'>入力待ち...</i>";
+        return;
+    }
+
+    // 変数設定の整形（rand関数のカンマを保護）
+    const vSafe = vRaw.split(/,(?![^\(]*\))/).map(s => {
+        s = s.trim(); if(!s) return '';
+        return s.match(/^(const|let|var)\s/) ? s + ';' : 'const ' + s + ';';
+    }).join(' ');
+
+    try {
+        // 表示内容にバッククォートを補完する（v3スタイル）
+        const dSafe = dRaw.startsWith('`') ? dRaw : `\`${dRaw}\``;
+        
+        const fn = new Function('rand', `
+            try {
+                ${vSafe}
+                return { q: ${dSafe}, a: ${aRaw} };
+            } catch(e) {
+                return { q: 'Error', a: e.message };
+            }
+        `);
+
+        let resHTML = `<button class="btn-refresh" onclick="testRaw('${g}','${o}',${lv},'${id}')">🔄</button>`;
+        for(let i=0; i<3; i++) {
+            const res = fn(window.rand);
+            if (res.q === 'Error') throw new Error(res.a);
+            resHTML += `<div class="preview-item"><span>${res.q}</span> = <b>${res.a}</b></div>`;
+        }
+        pre.innerHTML = resHTML;
+    } catch(e) {
+        pre.innerHTML = `<span style="color:red; font-size:9px;">Wait...</span>`;
+    }
+}
+
+function exportData() {
+    const exp = {};
+    for(let g in GRADES) {
+        exp[g] = { ops: GRADES[g].ops, ratios: GRADES[g].ratios, logic: {} };
+        for(let op in GRADES[g].logic) {
+            let opHasData = false;
+            let levels = {};
+            for(let lv in GRADES[g].logic[op]) {
+                const parts = GRADES[g].logic[op][lv].split('|');
+                const vRaw = parts[0] || "", dRaw = parts[1] || "", aRaw = parts[2] || "";
+                if(!vRaw.trim() && !dRaw.trim() && !aRaw.trim()) continue;
+
+                opHasData = true;
+                const vSafe = vRaw.split(/,(?![^\(]*\))/).map(s => {
+                    s = s.trim(); if(!s) return '';
+                    return s.match(/^(const|let|var)\s/) ? s + ';' : 'const ' + s + ';';
+                }).join(' ');
+                levels[lv] = `() => { ${vSafe} return { q: ${dRaw}, a: ${aRaw} }; }`;
+            }
+            if(opHasData) exp[g].logic[op] = levels;
+        }
+    }
+    document.getElementById('ioTextarea').value = `const GRADES = ${JSON.stringify(exp, null, 4)};`
+        .replace(/"\(\) =>/g, "() =>").replace(/\\n/g, "\n").replace(/\\"/g, '"').replace(/\}"/g, "}");
+}
+
+function importData() {
+    const raw = document.getElementById('ioTextarea').value;
+    if(!raw) return;
+    try {
+        const jsonStr = raw.substring(raw.indexOf('{'), raw.lastIndexOf('}') + 1);
+        const obj = new Function(`return ${jsonStr}`)();
+        for(let g in obj) {
+            for(let op in obj[g].logic) {
+                for(let lv in obj[g].logic[op]) {
+                    const funcStr = obj[g].logic[op][lv].toString();
+                    const v = funcStr.match(/\{([\s\S]*?)return/)[1].trim().replace(/(const|let|var)\s/g, '').replace(/;/g, ',');
+                    const vClean = v.split(/,(?![^\(]*\))/).map(x => x.trim()).filter(x => x).join(', ');
+                    const q = funcStr.match(/q:\s*([\s\S]*?),\s*a:/)[1].trim();
+                    const a = funcStr.match(/a:\s*([\s\S]*?)\s*\}/)[1].trim();
+                    obj[g].logic[op][lv] = `${vClean}|${q}|${a}`;
+                }
+            }
+        }
+        GRADES = obj;
+        renderSidebar(); renderMatrix();
+        alert("Import Success");
+    } catch(e) { alert("Import Error: " + e.message); }
+}
+
+function addGrade() {
+    const n = prompt("新しいグレード名");
+    if(n) { 
+        const genres = getAllAvailableGenres();
+        GRADES[n] = { ops: genres, ratios: genres.map(() => 0.2), logic: {} };
+        genres.forEach(op => { GRADES[n].logic[op] = {1:"||",2:"||",3:"||",4:"||",5:"||"}; });
+        renderSidebar(); selectGrade(n);
+    }
+}
+
+function addGenre() {
+    const n = prompt("新しいジャンル名");
+    if(n) {
+        Object.keys(GRADES).forEach(g => {
+            if(!GRADES[g].ops.includes(n)) GRADES[g].ops.push(n);
+            if(!GRADES[g].logic[n]) GRADES[g].logic[n] = {1:"||",2:"||",3:"||",4:"||",5:"||"};
+        });
+        renderSidebar(); selectGenreView(n);
+    }
+}
+
+function getInitialSampleData() {
+    const data = {};
+    const gradeNames = ['初級', '中級', '上級', '超級', '極級'];
+    const ops = ['+', '-', '×', '÷'];
+    
+    gradeNames.forEach((g, gIdx) => {
+        data[g] = { ops: [...ops], ratios: [0.3, 0.3, 0.2, 0.2], logic: {} };
+        ops.forEach(op => {
+            data[g].logic[op] = {};
+            for(let lv=1; lv<=5; lv++) {
+                let v="", d="", a="";
+                // 難易度調整用係数
+                const base = (gIdx + 1); 
+
+                if(op === '+') {
+                    if(lv <= 2) v = `a=rand(1,${base*10}), b=rand(1,${base*10})`;
+                    else if(lv <= 4) v = `a=rand(10,${base*50}), b=rand(10,${base*50})`;
+                    else v = `a=rand(100,${base*200}), b=rand(100,${base*200}), c=rand(1,50)`;
+                    d = lv < 5 ? `\${a}+\${b}` : `\${a}+\${b}+\${c}`;
+                    a = lv < 5 ? `a+b` : `a+b+c`;
+                } else if(op === '-') {
+                    v = `a=rand(${base*15*lv}, ${base*30*lv}), b=rand(1, ${base*14*lv})`;
+                    d = `\${a}-\${b}`;
+                    a = `a-b`;
+                } else if(op === '×') {
+                    if(lv === 1) v = `a=rand(2,5), b=rand(2,5)`;
+                    else if(lv <= 3) v = `a=rand(2,9), b=rand(2,9)`;
+                    else v = `a=rand(11,${10+base*5}), b=rand(2,9)`;
+                    d = `\${a}×\${b}`;
+                    a = `a*b`;
+                } else if(op === '÷') {
+                    let ansRange = lv * base * 3;
+                    v = `ans=rand(2,${ansRange}), b=rand(2,${5+gIdx})`;
+                    d = `\${ans*b}÷\${b}`;
+                    a = `ans`;
+                }
+                data[g].logic[op][lv] = `${v}|\`${d}\`|${a}`;
+            }
+        });
+    });
+    return data;
+}
+
+init();
+</script>
+</body>
+</html>

@@ -1,0 +1,55 @@
+
+:root{
+  --bg:#0b1020;--panel:#111827;--text:#e5e7eb;--muted:#9ca3af;
+  --brand:#60a5fa;--brand-strong:#3b82f6;--border:#1f2937;
+}
+*{box-sizing:border-box}
+html,body{margin:0;padding:0;background:var(--bg);color:var(--text);
+  font-family:system-ui,-apple-system,Segoe UI,Roboto,"Hiragino Kaku Gothic ProN","Noto Sans JP","Yu Gothic UI","Yu Gothic",Meiryo,sans-serif;
+  line-height:1.6}
+.site-header,.site-footer{max-width:1080px;margin:0 auto;padding:1rem}
+.site-header{display:flex;align-items:center;justify-content:space-between}
+.site-title{margin:0;font-size:1.25rem}
+.nav{list-style:none;margin:0;padding:0;display:flex;gap:.75rem}
+.nav a{display:inline-block;padding:.5rem .75rem;border:1px solid transparent;border-radius:.5rem;color:var(--text);text-decoration:none}
+.nav a:hover{background:rgba(255,255,255,.06)}
+.nav a[aria-current="page"]{color:#fff;background:rgba(59,130,246,.15);border-color:rgba(59,130,246,.25)}
+#app{max-width:1080px;margin:0 auto;padding:1rem;border-top:1px solid var(--border)}
+.panel{background:rgba(17,24,39,.8);border:1px solid var(--border);border-radius:1rem;padding:1.25rem}
+.button{display:inline-flex;align-items:center;gap:.5rem;padding:.6rem .9rem;border-radius:.6rem;
+  border:1px solid rgba(255,255,255,.08);background:linear-gradient(180deg,rgba(96,165,250,.16),rgba(59,130,246,.14));color:#eaf2ff;text-decoration:none;cursor:pointer}
+.button:hover{transform:translateY(-1px)}
+.grid{display:grid;gap:1rem}
+.grid-2{grid-template-columns:1fr 1fr}
+@media (max-width:880px){.grid-2{grid-template-columns:1fr}}
+.badge{display:inline-block;padding:.2rem .5rem;border-radius:.4rem;border:1px solid var(--border);background:rgba(255,255,255,.06)}
+.small{color:var(--muted);font-size:.9rem}
+.skip-link{position:absolute;left:-9999px}
+.skip-link:focus{position:static;background:#111827;border:1px solid var(--border);border-radius:.5rem;padding:.3rem .5rem}
+.table{width:100%;border-collapse:collapse}
+.table th,.table td{border:1px solid var(--border);padding:.5rem;text-align:left}
+.flex{display:flex;gap:.75rem;align-items:center;flex-wrap:wrap}
+.right{margin-left:auto}
+
+/* 戦闘中全画面にするためのクラス */
+body.battle-mode {
+  overflow: hidden;               /* スクロール禁止（必要なら） */
+}
+
+body.battle-mode .site-header,
+body.battle-mode .site-footer {
+  display: none !important;       /* ヘッダー/フッターを隠す */
+}
+
+body.battle-mode #app {
+  padding: 0 !important;
+  max-width: none !important;
+  border-top: none !important;
+}
+
+body.battle-mode #battle-root {
+  /* 戦闘ルートの描画領域を、アドレスバーの揺らぎに強い 100dvh で全画面化 */
+  height: 100dvh;
+  width: 100vw;
+  overflow: hidden;               /* 内側スクロールも禁止。必要に応じて auto に */
+}

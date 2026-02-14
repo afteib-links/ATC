@@ -119,6 +119,13 @@
             <button class="btn" onclick="importData()">インポート</button>
             <button class="btn" onclick="exportData()">エクスポート</button>
         </div>
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap:8px; margin-top:8px;">
+            <select id="map-select" onchange="loadSelectedMap()"></select>
+            <div style="display:flex; gap:8px;">
+                <button class="btn" onclick="fetchMapsFromServer()">サーバーから読み込み</button>
+                <button class="btn" onclick="saveCurrentMapToServer()">サーバーへ保存</button>
+            </div>
+        </div>
         <textarea id="output" spellcheck="false" onclick="this.select()"></textarea>
     </div>
 </div>
@@ -313,6 +320,84 @@
         } catch(e) { alert("インポートエラー: " + e.message); }
     }
 
+    // --- Server integration: fetch & save maps.js on server ---
+    async function fetchMapsFromServer() {
+        try {
+            const res = await fetch('/api/maps');
+            const j = await res.json();
+            if (!j.ok) throw new Error(j.error || 'failed');
+            const sel = document.getElementById('map-select');
+            sel.innerHTML = '';
+            window.__SERVER_MAPS = j.maps;
+            j.maps.forEach((m, idx) => {
+                const opt = document.createElement('option');
+                opt.value = idx; opt.text = `${m.id} - ${m.name}`;
+                sel.appendChild(opt);
+            });
+            if (j.maps.length) { sel.selectedIndex = 0; loadSelectedMap(); }
+            alert('maps loaded from server');
+        } catch (e) { alert('読み込み失敗: ' + e.message); }
+    }
+
+    function loadSelectedMap() {
+        const sel = document.getElementById('map-select');
+        const idx = parseInt(sel.value);
+        const maps = window.__SERVER_MAPS || [];
+        if (!maps[idx]) return;
+        const m = maps[idx];
+        document.getElementById('map-name').value = m.name || '';
+        document.getElementById('map-id').value = m.id || '';
+        // populate grid from layout + mapping
+        const mapping = m.mapping || {};
+        grid = (m.layout || []).map(line => {
+            return line.split('').map(ch => mapping[ch] !== undefined ? mapping[ch].toString() : ch);
+        });
+        document.getElementById('rows').value = grid.length;
+        document.getElementById('cols').value = grid[0] ? grid[0].length : 0;
+        renderGrid();
+    }
+
+    function buildMapObject() {
+        const name = document.getElementById('map-name').value;
+        const id = document.getElementById('map-id').value;
+        let mapping = {};
+        let symbolCode = 65; // 'A'
+        const encodedLayout = grid.map(row => {
+            return row.map(cell => {
+                const val = cell.trim();
+                if (val !== '' && val !== 'x' && val !== '0' && val !== 'S' && val !== 'G' && (isNaN(val) || parseInt(val) >= 10)) {
+                    if (!mapping[val]) mapping[val] = String.fromCharCode(symbolCode++);
+                    return mapping[val];
+                }
+                return val === '' ? ' ' : val;
+            }).join('');
+        });
+        const reverse = {};
+        for (let k in mapping) reverse[mapping[k]] = isNaN(k) ? k : parseInt(k);
+        return { id, name, layout: encodedLayout, mapping: reverse };
+    }
+
+    async function saveCurrentMapToServer() {
+        try {
+            const mapObj = buildMapObject();
+            // fetch current maps, replace or append
+            const res = await fetch('/api/maps');
+            const j = await res.json();
+            if (!j.ok) throw new Error(j.error || 'failed');
+            let maps = j.maps || [];
+            const idx = maps.findIndex(m => m.id === mapObj.id);
+            if (idx >= 0) maps[idx] = mapObj; else maps.push(mapObj);
+            const put = await fetch('/api/maps', {
+                method: 'POST', headers: {'Content-Type':'application/json'},
+                body: JSON.stringify({ maps })
+            });
+            const r2 = await put.json();
+            if (!r2.ok) throw new Error(r2.error || 'save failed');
+            alert('保存しました');
+            fetchMapsFromServer();
+        } catch (e) { alert('保存失敗: ' + e.message); }
+    }
+
     function addCustomButton() {
         const label = document.getElementById('custom-label').value;
         if(!label) return;
@@ -325,6 +410,8 @@
     function allClear() { if(confirm("初期化しますか？")) resizeGrid(false); }
 
     init();
+    // try to fetch maps list automatically
+    try { fetchMapsFromServer(); } catch(e){}
 </script>
 </body>
 </html>

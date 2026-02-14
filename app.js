@@ -698,11 +698,18 @@ class BattleEngine {
         
         this.showFeed(`${this.enemies[this.targetIdx].name}に ${finalDmg}ダメージ！+${this.curProb.rank}★`, 'var(--correct)');
         
-        // ★ 麻痺判定
+        // ★ 麻痺判定（連続麻痺で時間短縮）
         if (damageInfo.paralysisInfo && damageInfo.paralysisInfo.isParalyzed) {
-          this.enemies[this.targetIdx].paralyzed = true;
-          this.enemies[this.targetIdx].paralysisTimer = damageInfo.paralysisInfo.duration;
-          this.showFeed(`${this.enemies[this.targetIdx].name}は麻痺した！`, 'var(--gold)');
+          const paralysisChainCount = this.enemies[this.targetIdx].paralysisChainCount || 0;
+          const paralysisDuration = Math.max(0, 5 - paralysisChainCount);
+          
+          // 麻痺時間が0になったら麻痺しない
+          if (paralysisDuration > 0) {
+            this.enemies[this.targetIdx].paralyzed = true;
+            this.enemies[this.targetIdx].paralysisTimer = paralysisDuration;
+            this.enemies[this.targetIdx].paralysisChainCount += 1;
+            this.showFeed(`${this.enemies[this.targetIdx].name}は麻痺した！(${paralysisDuration}秒)`, 'var(--gold)');
+          }
         }
         
         if(this.enemies[this.targetIdx].cur <= 0){
@@ -861,6 +868,8 @@ closeLvUp() {
         if(e.t<=0){
           const dmg = Math.max(1, e.atk - this.p.def);
           this.p.hp -= dmg; e.t = e.spd;
+          // ★ 敵が攻撃したタイミングで麻痺チェーンカウントをリセット
+          e.paralysisChainCount = 0;
           this.showFeed(`被弾！ ${dmg}ダメージ`, 'var(--red)');
           this.updateUI();
           if(this.p.hp<=0){
@@ -928,7 +937,8 @@ closeLvUp() {
       spd: resolveStat(en.spd),
       exp: resolveStat(en.exp),
       paralyzed: false,
-      paralysisTimer: 0
+      paralysisTimer: 0,
+      paralysisChainCount: 0
     }));
     this.enemies.forEach(e=>{ e.cur=e.hp; e.t=e.spd; });
     this.targetIdx=0;
@@ -1117,13 +1127,13 @@ MapScreen.afterRender = () => {
       // 復活クールダウン中の場合、イベント無視
       if (elapsedTime < defeated.respawnDelay) {
         const remainSecs = Math.ceil((defeated.respawnDelay - elapsedTime) / 1000);
-        map.addLog(`<span style="color:#fca5a5">敵がまだ復活中（${remainSecs}秒待機中）...</span>`);
+        map.addLog(`<span style="color:#fca5a5">黒いもやが残っている。あと（${remainSecs}秒は何もなさそうだ）...</span>`);
         return;
       }
       
       // 復活回数を超えた場合、イベント無視（二度と出現しない）
       if (defeated.respawnCount >= defeated.respawnLimit) {
-        map.addLog(`<span style="color:#93c5fd">この敵は完全に消えてしまった...</span>`);
+        map.addLog(`<span style="color:#93c5fd">ここには何も残っていない。完全に消し去った。</span>`);
         return;
       }
       
@@ -1135,6 +1145,10 @@ MapScreen.afterRender = () => {
     const stageData = (floorData.stages || []).find(s => s.id === eventId) || {};
     const stageLabel = stageData.title || floorData.floor || `Stage ${eventId}`;
     const enemyName = (stageData.enemies && stageData.enemies[0]?.name) || '???';
+    
+    // ★ ボスキャラの判定
+    const isBoss = enemyName.includes('BOSS') || enemyName.includes('ボス');
+    console.log(`[DEBUG] Enemy: ${enemyName}, isBoss: ${isBoss}`);
 
     // テキスト生成（複数敵は “先頭の敵の名 など” 表記）
     const encText = `（<b>${stageLabel}</b>）にたどり着くと、<b>「${enemyName}${(stageData.enemies?.length||0) > 1 ? '」 など' : '」'}</b>が現れた。<br>どうする？`;
@@ -1156,7 +1170,12 @@ MapScreen.afterRender = () => {
     };
 
     // ★ 「逃げる」→ バトル回避（ログへ）
+    // ボスキャラからは逃げられない
     $escape.onclick = () => {
+      if (isBoss) {
+        map.addLog(`<span style="color:#fca5a5">${enemyName}の強力なオーラに支配されて逃げられない！</span>`);
+        return;
+      }
       $ov.style.display = 'none';
       Store.lastEncounter = { stageId: eventId, enemyName, action: 'escape' };
       // すぐ再トリガーされるのが嫌なら、数ステップだけ隠すなどの処理を入れてもOK
@@ -1165,6 +1184,15 @@ MapScreen.afterRender = () => {
       // マップのログにメッセージを残す
       map.addLog(`<span style="color:#93c5fd">…${enemyName} から逃げた。</span>`);
     };
+    
+    // ★ ボスの場合は逃げボタンを視覚的に無効化
+    if (isBoss) {
+      $escape.style.opacity = '0.5';
+      $escape.style.cursor = 'not-allowed';
+    } else {
+      $escape.style.opacity = '1';
+      $escape.style.cursor = 'pointer';
+    }
   });
 
   // 直前の戦闘結果（win/lose）があればログ表示してクリア
@@ -1211,6 +1239,10 @@ BattleScreen.afterRender = () => {
   battle.on('end', ({ result, rewards }) => {
     // ★ 戦闘相手（先頭敵）の名前を BattleEngine 側から取得できるようにしておく
     const enemyName = battle.getPrimaryEnemyName?.() || '???';
+    
+    // ★ ボスキャラの判定
+    const isBoss = enemyName.includes('BOSS') || enemyName.includes('ボス');
+    console.log(`[DEBUG] Battle End - Enemy: ${enemyName}, isBoss: ${isBoss}, result: ${result}`);
 
     // 結果を保存（MapScreen.afterRenderでログ表示＆クリア）
     Store.lastBattle = { enemyName, result }; // result: 'win'|'lose'
@@ -1226,18 +1258,16 @@ BattleScreen.afterRender = () => {
       // フロアの開始地点に戻す処理はMapScreenで実施
     } else if (result === 'win' && typeof Store.pendingEventId === 'number') {
       // ★ 敷詰：バトル勝利時に敵の復活情報をStore.floorStates に記録
-      const stageId = Math.max(1, Math.min(parseInt(Store.pendingEventId, 10), 10));
-      const floorIdx = Store.floorIndex;
-      ensureFloorState(floorIdx);
-      
-      if (!Store.floorStates[floorIdx].defeated) {
-        Store.floorStates[floorIdx].defeated = {};
-      }
-      
-      // BOSSか判定（敵名に 'BOSS' または 'ボス' を含む場合は復活しない）
-      const isBoss = enemyName.includes('BOSS') || enemyName.includes('ボス');
-      
+      // ボスキャラは復活しない
       if (!isBoss) {
+        const stageId = Math.max(1, Math.min(parseInt(Store.pendingEventId, 10), 10));
+        const floorIdx = Store.floorIndex;
+        ensureFloorState(floorIdx);
+        
+        if (!Store.floorStates[floorIdx].defeated) {
+          Store.floorStates[floorIdx].defeated = {};
+        }
+        
         // 復活情報を記録
         Store.floorStates[floorIdx].defeated[stageId] = {
           defeatedAt: performance.now(),
@@ -1245,6 +1275,9 @@ BattleScreen.afterRender = () => {
           respawnLimit: CONFIG.respawn?.limit || 3,      // デフォルト3回
           respawnCount: 0
         };
+        console.log(`[DEBUG] Respawn info recorded for stageId: ${stageId}`);
+      } else {
+        console.log(`[DEBUG] Boss defeated - No respawn info recorded`);
       }
     }
     
@@ -1260,7 +1293,10 @@ BattleScreen.afterRender = () => {
   const floorIdx = Math.max(0, Store.floorIndex);
   const grade = currentDifficulty().grade;
 
+  console.log(`[DEBUG] Starting battle - floorIdx: ${floorIdx}, stageId: ${stageId}`);
   battle.startBattle({ player: Store.player, floorIdx, stageId, grade });
+  
+  console.log(`[DEBUG] Starting battle - floorIdx: ${floorIdx}, stageId: ${stageId}`);
 };
 
 

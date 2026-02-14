@@ -134,23 +134,6 @@
     </div>
 </div>
 
-
-    function addNewLocalMap() {
-        window.__SERVER_MAPS = window.__SERVER_MAPS || [];
-        const nextId = 'map_' + (window.__SERVER_MAPS.length + 1);
-        const newMap = { id: nextId, name: '新規マップ', layout: Array(parseInt(document.getElementById('rows').value||15)).fill(' '.repeat(parseInt(document.getElementById('cols').value||15))), mapping: {} };
-        window.__SERVER_MAPS.push(newMap);
-        const sel = document.getElementById('map-select'); sel.innerHTML = '';
-        window.__SERVER_MAPS.forEach((m, idx) => { const opt = document.createElement('option'); opt.value = idx; opt.text = `${m.id} - ${m.name}`; sel.appendChild(opt); });
-        sel.selectedIndex = window.__SERVER_MAPS.length - 1;
-        loadSelectedMap();
-    }
-
-    function exportAllMapsToOutput() {
-        const maps = window.__SERVER_MAPS || (window.__LOCAL_MAPS || []);
-        const out = 'window.MAPS = ' + JSON.stringify(maps, null, 2) + ';';
-        document.getElementById('output').value = out;
-    }
 <div class="main-editor">
     <div class="editor-container">
         <div class="grid-header-row"><div class="corner"></div><div id="col-labels" class="col-index"></div></div>
@@ -463,6 +446,24 @@
         document.getElementById('custom-label').value = '';
     }
 
+
+    function addNewLocalMap() {
+        window.__SERVER_MAPS = window.__SERVER_MAPS || [];
+        const nextId = 'map_' + (window.__SERVER_MAPS.length + 1);
+        const newMap = { id: nextId, name: '新規マップ', layout: Array(parseInt(document.getElementById('rows').value||15)).fill(' '.repeat(parseInt(document.getElementById('cols').value||15))), mapping: {} };
+        window.__SERVER_MAPS.push(newMap);
+        const sel = document.getElementById('map-select'); sel.innerHTML = '';
+        window.__SERVER_MAPS.forEach((m, idx) => { const opt = document.createElement('option'); opt.value = idx; opt.text = `${m.id} - ${m.name}`; sel.appendChild(opt); });
+        sel.selectedIndex = window.__SERVER_MAPS.length - 1;
+        loadSelectedMap();
+    }
+
+    function exportAllMapsToOutput() {
+        const maps = window.__SERVER_MAPS || (window.__LOCAL_MAPS || []);
+        const out = 'window.MAPS = ' + JSON.stringify(maps, null, 2) + ';';
+        document.getElementById('output').value = out;
+    }
+    
     function allClear() { if(confirm("初期化しますか？")) resizeGrid(false); }
 
     init();

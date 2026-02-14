@@ -6,7 +6,7 @@
 *{box-sizing:border-box}
 html,body{margin:0;padding:0;background:var(--bg);color:var(--text);
   font-family:system-ui,-apple-system,Segoe UI,Roboto,"Hiragino Kaku Gothic ProN","Noto Sans JP","Yu Gothic UI","Yu Gothic",Meiryo,sans-serif;
-  line-height:1.6}
+  line-height:1.6; touch-action: manipulation; -ms-touch-action: manipulation;}
 .site-header,.site-footer{max-width:1080px;margin:0 auto;padding:1rem}
 .site-header{display:flex;align-items:center;justify-content:space-between}
 .site-title{margin:0;font-size:1.25rem}

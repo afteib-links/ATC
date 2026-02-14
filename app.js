@@ -1044,6 +1044,19 @@ function router(){
 window.addEventListener('hashchange', router);
 window.addEventListener('DOMContentLoaded', ()=>{
   router();
+
+  // Prevent double-tap zoom on mobile: if two touchend events occur quickly, prevent default to stop browser zoom
+  // Note: we set passive:false so we can call preventDefault()
+  (function(){
+    let lastTouchEnd = 0;
+    document.addEventListener('touchend', function(e){
+      const now = Date.now();
+      if (now - lastTouchEnd <= 300) {
+        e.preventDefault();
+      }
+      lastTouchEnd = now;
+    }, { passive: false });
+  })();
 });
 
 /* ------------------------------

@@ -1068,7 +1068,7 @@ window.addEventListener('DOMContentLoaded', ()=>{
    画面：タイトル
 ------------------------------ */
 function TitleScreen(){}
-TitleScreen.title = '算術の塔 v1.0.0';
+TitleScreen.title = '算術の塔 v1.2.3';
 TitleScreen.render = () => {
   const saves = SaveSystem.list();
   const diffBtns = CONFIG.difficulties.map(d=>`<button class="button" data-diff="${d.id}">${d.label}</button>`).join('');

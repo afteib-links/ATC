@@ -375,9 +375,12 @@
         document.getElementById('map-name').value = m.name || '';
         document.getElementById('map-id').value = m.id || '';
         // populate grid from layout + mapping
-        const mapping = m.mapping || {};
+        // keep symbol->value mapping available for later (saving)
+        window.__CURRENT_MAP_MAPPING = m.mapping || {};
+        const mapping = window.__CURRENT_MAP_MAPPING;
+        // keep grid cells as single-character symbols from layout
         grid = (m.layout || []).map(line => {
-            return line.split('').map(ch => mapping[ch] !== undefined ? mapping[ch].toString() : ch);
+            return line.split('').map(ch => ch === ' ' ? ' ' : ch);
         });
         document.getElementById('rows').value = grid.length;
         document.getElementById('cols').value = grid[0] ? grid[0].length : 0;
@@ -387,21 +390,39 @@
     function buildMapObject() {
         const name = document.getElementById('map-name').value;
         const id = document.getElementById('map-id').value;
-        let mapping = {};
+        // existing symbol->value mapping from loaded map (if any)
+        const existingSymbolMap = window.__CURRENT_MAP_MAPPING ? Object.assign({}, window.__CURRENT_MAP_MAPPING) : {};
+        // build value->symbol map for quick lookup (use stringified values)
+        const valueToSymbol = {};
+        for (let sym in existingSymbolMap) {
+            const v = existingSymbolMap[sym];
+            valueToSymbol[String(v)] = sym;
+        }
+        // choose next available symbol (A..Z)
         let symbolCode = 65; // 'A'
+        const used = new Set(Object.keys(existingSymbolMap));
+        while (used.has(String.fromCharCode(symbolCode))) symbolCode++;
+
         const encodedLayout = grid.map(row => {
             return row.map(cell => {
-                const val = cell.trim();
-                if (val !== '' && val !== 'x' && val !== '0' && val !== 'S' && val !== 'G' && (isNaN(val) || parseInt(val) >= 10)) {
-                    if (!mapping[val]) mapping[val] = String.fromCharCode(symbolCode++);
-                    return mapping[val];
-                }
-                return val === '' ? ' ' : val;
+                const valRaw = cell;
+                const val = (valRaw === null || valRaw === undefined) ? '' : String(valRaw).trim();
+                if (val === '') return ' ';
+                if (val === 'x' || val === '0' || val === 'S' || val === 'G') return val;
+                // if this is a single-character symbol already known, preserve it
+                if (val.length === 1 && existingSymbolMap[val] !== undefined) return val;
+                // if this value already has an assigned symbol, reuse
+                if (valueToSymbol.hasOwnProperty(val)) return valueToSymbol[val];
+                // otherwise assign a new symbol
+                const sym = String.fromCharCode(symbolCode++);
+                valueToSymbol[val] = sym;
+                existingSymbolMap[sym] = (isNaN(val) ? val : parseInt(val));
+                return sym;
             }).join('');
         });
-        const reverse = {};
-        for (let k in mapping) reverse[mapping[k]] = isNaN(k) ? k : parseInt(k);
-        return { id, name, layout: encodedLayout, mapping: reverse };
+
+        // existingSymbolMap now is symbol->value mapping
+        return { id, name, layout: encodedLayout, mapping: existingSymbolMap };
     }
 
     async function saveCurrentMapToServer() {

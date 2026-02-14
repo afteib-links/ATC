@@ -20,8 +20,6 @@ function writeMapsFile(maps) {
   fs.writeFileSync(MAPS_PATH, out, 'utf8');
 }
 
-app.use(express.static(path.join(__dirname)));
-
 app.get('/api/maps', (req, res) => {
   try {
     const maps = readMapsFile();
@@ -52,6 +50,15 @@ app.post('/api/maps', (req, res) => {
   } catch (err) {
     res.status(500).json({ ok: false, error: err.message });
   }
+});
+
+// static files (served after API routes to avoid accidental override)
+app.use(express.static(path.join(__dirname)));
+
+app.use((err, req, res, next) => {
+  console.error(err);
+  if (res.headersSent) return next(err);
+  res.status(500).json({ ok: false, error: 'server error' });
 });
 
 app.listen(PORT, () => console.log(`Server running at http://localhost:${PORT}/`));

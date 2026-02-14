@@ -324,7 +324,13 @@
     async function fetchMapsFromServer() {
         try {
             const res = await fetch('/api/maps');
-            const j = await res.json();
+            const ct = res.headers.get('content-type') || '';
+            let j;
+            if (ct.includes('application/json')) j = await res.json();
+            else {
+                const txt = await res.text();
+                throw new Error('server returned non-json: ' + (txt.slice(0,100)));
+            }
             if (!j.ok) throw new Error(j.error || 'failed');
             const sel = document.getElementById('map-select');
             sel.innerHTML = '';
@@ -382,7 +388,13 @@
             const mapObj = buildMapObject();
             // fetch current maps, replace or append
             const res = await fetch('/api/maps');
-            const j = await res.json();
+            const ct = res.headers.get('content-type') || '';
+            let j;
+            if (ct.includes('application/json')) j = await res.json();
+            else {
+                const txt = await res.text();
+                throw new Error('server returned non-json: ' + (txt.slice(0,100)));
+            }
             if (!j.ok) throw new Error(j.error || 'failed');
             let maps = j.maps || [];
             const idx = maps.findIndex(m => m.id === mapObj.id);
@@ -391,7 +403,9 @@
                 method: 'POST', headers: {'Content-Type':'application/json'},
                 body: JSON.stringify({ maps })
             });
-            const r2 = await put.json();
+            const ct2 = put.headers.get('content-type') || '';
+            let r2;
+            if (ct2.includes('application/json')) r2 = await put.json(); else r2 = { ok: false, error: await put.text() };
             if (!r2.ok) throw new Error(r2.error || 'save failed');
             alert('保存しました');
             fetchMapsFromServer();

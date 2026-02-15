@@ -445,18 +445,18 @@ class MapEngine {
 
 
 const BATTLE_CSS_SCOPED = `.battle-scope{ 
-            --bg: #0f172a; --panel: #1e293b; --gold: #fbbf24; 
-            --green: #2ecc71; --red: #ef4444; --timer: #22d3ee;
-            --correct: #4ade80; --wrong: #f87171;
-        }.battle-scope *{ box-sizing: border-box; -webkit-tap-highlight-color: rgba(0,0,0,0.1); }.battle-scope{ font-family: 'Helvetica Neue', Arial, sans-serif; background: var(--bg); color: #fff; margin: 0; display: flex; justify-content: center; min-height: 100vh; overflow: auto; padding: 0; }.battle-scope /* 背景色の遷移を滑らかにする設定 */
-        #game-screen{ 
-            width: 100%; max-width: 100vw; min-height: 100vh;
-            display: flex; flex-direction: column; position: relative; 
-            background: #111; border: none;
-            transition: background 1.0s ease;
-            box-sizing: border-box;
-            padding: 0;
-        }
+      --bg: #0f172a; --panel: #1e293b; --gold: #fbbf24; 
+      --green: #2ecc71; --red: #ef4444; --timer: #22d3ee;
+      --correct: #4ade80; --wrong: #f87171;
+    }.battle-scope *{ box-sizing: border-box; -webkit-tap-highlight-color: rgba(0,0,0,0.1); }.battle-scope{ font-family: 'Helvetica Neue', Arial, sans-serif; background: var(--bg); color: #fff; margin: 0; display: flex; justify-content: center; min-height: 100%; height: 100%; overflow: hidden; padding: 0; }.battle-scope /* 背景色の遷移を滑らかにする設定 */
+    #game-screen{ 
+      width: 100%; max-width: 100vw; min-height: 100%; height: 100%;
+      display: flex; flex-direction: column; position: relative; 
+      background: #111; border: none;
+      transition: background 1.0s ease;
+      box-sizing: border-box;
+      padding: 0;
+    }
         @media (min-width: 481px) {
             #game-screen { max-width: 480px; border: 1px solid #333; }
         }.battle-scope .overlay{ position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.95); z-index: 5000; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 10px; overflow-y: auto; }.battle-scope .modal-inner{ background: var(--panel); padding: 15px; border: 3px solid var(--gold); border-radius: 15px; width: 100%; max-width: 420px; max-height: 90vh; overflow-y: auto; }.battle-scope .btn{ cursor: pointer; border: none; border-radius: 8px; font-weight: bold; color: #000; width: 100%; padding: 14px; margin: 8px 0; font-size: 16px; transition: all 0.2s; touch-action: manipulation; user-select: none; min-height: 48px; }.battle-scope .btn:active{ transform: scale(0.95); opacity: 0.8; background: rgba(251, 191, 36, 0.8); }.battle-scope .btn-main{ background: var(--gold); color: #000; }.battle-scope /* セレクトボックスのスタイル */
@@ -479,6 +479,7 @@ class BattleEngine {
         max-width: 480px;
         margin: 0 auto;
         width: 100vw;
+        height: 100%;
         box-sizing: border-box;
         /* 画面幅が狭い場合は縮小 */
         transform-origin: top center;

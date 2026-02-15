@@ -475,6 +475,58 @@ class BattleEngine {
 
   mount(container){
     const effectStyles = `
+      /* バトル画面全体のスケーリングとカード幅調整 */
+      .battle-scope #game-screen {
+        max-width: 480px;
+        margin: 0 auto;
+        width: 100vw;
+        box-sizing: border-box;
+        /* 画面幅が狭い場合は縮小 */
+        transform-origin: top center;
+      }
+      @media (max-width: 520px) {
+        .battle-scope #game-screen {
+          max-width: 100vw;
+          transform: scale(calc(100vw / 480));
+          /* 480px基準で縮小 */
+        }
+      }
+      .battle-scope #hand-row {
+        flex: 1;
+        min-height: 90px;
+        max-height: 180px;
+        align-items: flex-end;
+        gap: 8px;
+      }
+      .battle-scope .card-container {
+        min-width: 70px;
+        max-width: 110px;
+        flex: 1 1 0;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 4px;
+      }
+      .battle-scope .card {
+        width: 100%;
+        height: 72px;
+        min-height: 72px;
+        max-width: 110px;
+        border: 2px solid #fff;
+        border-radius: 8px;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        cursor: pointer;
+        transition: 0.2s;
+        touch-action: manipulation;
+      }
+      @media (max-width: 600px) {
+        .battle-scope #hand-row { min-height: 60px; max-height: 110px; gap: 4px; }
+        .battle-scope .card-container { min-width: 44px; max-width: 70px; }
+        .battle-scope .card { min-height: 48px; height: 48px; max-width: 70px; }
+      }
       /* 問題・答え欄の強調とレイアウト調整 */
       .battle-scope #prob-txt {
         font-size: 2.2rem;
@@ -1168,7 +1220,7 @@ function router(){
   app.setAttribute('aria-busy','true');
   app.innerHTML = page.render();
   page.afterRender?.();
-  document.title = `${page.title} - 算術の塔 v1.2.11`;
+  document.title = `${page.title} - 算術の塔 v1.2.12`;
   // （ナビの aria-current の付け替え等は既存通り）
   app.removeAttribute('aria-busy');
 }
@@ -1181,7 +1233,7 @@ window.addEventListener('DOMContentLoaded', ()=>{
    画面：タイトル
 ------------------------------ */
 function TitleScreen(){}
-TitleScreen.title = '算術の塔 v1.2.11';
+TitleScreen.title = '算術の塔 v1.2.12';
 TitleScreen.render = () => {
   const saves = SaveSystem.list();
   const diffBtns = CONFIG.difficulties.map(d=>`<button class="button" data-diff="${d.id}">${d.label}</button>`).join('');

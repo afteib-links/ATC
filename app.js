@@ -95,7 +95,7 @@ const Store = {
   settings: {
     controlMode: 'relative', // 'relative' (既存) / 'absolute'（方位で進む）
     clickToMove: true,       // レーダークリックで移動
-    radar: { w: 3, h: 3 }    // レーダーの表示範囲（幅×高さ）
+    radar: { w: 5, h: 5 }    // レーダーの表示範囲（幅×高さ）
   }
 
 };
@@ -166,7 +166,7 @@ class MapEngine {
       .map-scope #game-ui { width: 420px; max-width: 100%; background: #1a1d23; border-radius: 28px; padding: 30px; position: relative; border: 3px solid #00d4ff; box-shadow: 0 30px 60px rgba(0,0,0,0.8), 0 0 30px rgba(0,212,255,0.4); margin: 0 auto; }
       .map-scope #time-status { position: absolute; top: 10px; left: 20px; font-size: 14px; color: #00aaff; font-weight: bold; display: flex; align-items: center; gap: 5px; }
       .map-scope #navigation-core { position: absolute; top: -60px; right: 20px; width: 130px; height: 130px; display: flex; align-items: center; justify-content: center; z-index: 10; background: rgba(13,17,23,0.95); border: 2px solid #00aaff; border-radius: 50%; box-shadow: 0 0 20px rgba(0,170,255,0.5); }
-      .map-scope #radar-grid { position: absolute; display: grid; grid-template-columns: repeat(3, 1fr); grid-template-rows: repeat(3, 1fr); width: 120px; height: 120px; gap: 4px; z-index: 11; pointer-events:none; }
+      .map-scope #radar-grid { position: absolute; display: grid; grid-template-columns: repeat(5, 1fr); grid-template-rows: repeat(5, 1fr); width: 120px; height: 120px; gap: 4px; z-index: 11; pointer-events:none; }
       .map-scope .cell { border-radius: 4px; transition: background 0.2s; }
       .map-scope .is-room { background: rgba(255,255,255,0.25); border: 1px solid rgba(255,255,255,0.05); }
       .map-scope .is-path { background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.05); }
@@ -215,9 +215,9 @@ class MapEngine {
     };
 
 	  // ★ レーダーサイズを設定から反映
-	  const { w, h } = (Store?.settings?.radar || { w:3, h:3 });
-	  this.radarW = Math.max(3, w|0); // 最小3
-	  this.radarH = Math.max(3, h|0);
+	  const { w, h } = (Store?.settings?.radar || { w:5, h:5 });
+	  this.radarW = Math.max(5, w|0); // 最小5
+	  this.radarH = Math.max(5, h|0);
 
 	  // 動的グリッド
 	  this.$.grid.style.display = 'grid';
@@ -1111,7 +1111,7 @@ function router(){
   app.setAttribute('aria-busy','true');
   app.innerHTML = page.render();
   page.afterRender?.();
-  document.title = `${page.title} - 算術の塔 v1.2.8`;
+  document.title = `${page.title} - 算術の塔 v1.2.10`;
   // （ナビの aria-current の付け替え等は既存通り）
   app.removeAttribute('aria-busy');
 }
@@ -1137,7 +1137,7 @@ window.addEventListener('DOMContentLoaded', ()=>{
    画面：タイトル
 ------------------------------ */
 function TitleScreen(){}
-TitleScreen.title = '算術の塔 v1.2.8';
+TitleScreen.title = '算術の塔 v1.2.10';
 TitleScreen.render = () => {
   const saves = SaveSystem.list();
   const diffBtns = CONFIG.difficulties.map(d=>`<button class="button" data-diff="${d.id}">${d.label}</button>`).join('');
@@ -1183,7 +1183,9 @@ TitleScreen.afterRender = () => {
       Store.player = s.player || Store.player;
       Store.floorStates = s.floorStates || {};
       ensureFloorState(Store.floorIndex);
-      resetRunTimer(); startRunTimer();
+      // コンティニュー時はresetRunTimer()を呼ばない（経過時間を保持）
+      Store.timerStartAt = null; // タイマーをリセット
+      startRunTimer(); // タイマーを再開
       location.hash = '/map';
     });
   });

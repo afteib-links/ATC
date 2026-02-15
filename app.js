@@ -163,41 +163,46 @@ class MapEngine {
     container.innerHTML = `
       <style>
       .map-scope { background: #0d0f14; color: #e0e6ed; font-family: 'Segoe UI', sans-serif; border-radius:16px; padding: 1rem; }
-      .map-scope #game-ui { width: 420px; max-width: 100%; background: #1a1d23; border-radius: 50%; padding: 30px; position: relative; border: 3px solid #00d4ff; box-shadow: 0 30px 60px rgba(0,0,0,0.8), 0 0 30px rgba(0,212,255,0.4); margin: 0 auto; aspect-ratio: 1; display: flex; flex-direction: column; justify-content: center; }
+      .map-scope #game-ui { width: 420px; max-width: 100%; background: #1a1d23; border-radius: 28px; padding: 30px; position: relative; border: 3px solid #00d4ff; box-shadow: 0 30px 60px rgba(0,0,0,0.8), 0 0 30px rgba(0,212,255,0.4); margin: 0 auto; }
+      .map-scope #time-status { position: absolute; top: 10px; left: 20px; font-size: 14px; color: #00aaff; font-weight: bold; display: flex; align-items: center; gap: 5px; }
       .map-scope #navigation-core { position: absolute; top: -60px; right: 20px; width: 130px; height: 130px; display: flex; align-items: center; justify-content: center; z-index: 10; }
       .map-scope #radar-grid { position: absolute; display: grid; grid-template-columns: repeat(3, 1fr); grid-template-rows: repeat(3, 1fr); width: 120px; height: 120px; gap: 4px; z-index: 11; pointer-events:none; }
       .map-scope .cell { border-radius: 4px; transition: background 0.2s; }
       .map-scope .is-room { background: rgba(255,255,255,0.25); border: 1px solid rgba(255,255,255,0.05); }
       .map-scope .is-path { background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.05); }
       .map-scope .is-current { border: 2px solid #00aaff; background: rgba(0,170,255,0.3); box-shadow: inset 0 0 10px #00aaff; z-index:3; }
-      .map-scope #compass-center { width: 46px; height: 46px; background: rgba(13,17,23,0.95); border: 2px solid #00aaff; border-radius: 50%; display:flex; align-items:center; justify-content:center; z-index:12; box-shadow:0 0 15px rgba(0,0,0,0.7); position: relative; }
       .map-scope #arrow { font-size: 30px; color: #00aaff; text-shadow: 0 0 8px #00aaff; line-height:1; }
+      .map-scope #map-details { background: rgba(0,0,0,0.3); border-radius: 50%; padding: 25px; border: 2px solid #00d4ff; aspect-ratio: 1; display: flex; flex-direction: column; justify-content: center; }
       .map-scope #log { height: 180px; overflow-y: auto; background: rgba(0,0,0,0.4); border-radius: 15px; padding: 20px; margin-bottom: 25px; border: 1px solid #2d333b; line-height: 1.6; }
       .map-scope .controls { display: grid; grid-template-columns: repeat(3, 1fr); gap: 15px; }
       .map-scope button { background: #21262d; color: white; border: 1px solid #30363d; padding: 15px 5px; border-radius: 12px; cursor: pointer; font-weight: bold; }
       .map-scope button:hover:not(:disabled) { border-color: #00aaff; background: #30363d; }
       .map-scope button:disabled { opacity: 0.1; }
       .map-scope .back-btn { grid-column: 2; border-style: dotted; color: #8b949e; }
-      .map-scope .status-bar { display:flex; justify-content: space-between; font-size: 11px; color: #00aaff; letter-spacing: 1px; margin-bottom: 10px; font-weight: bold; }
+      .map-scope .status-bar { font-size: 11px; color: #00aaff; letter-spacing: 1px; margin-bottom: 10px; font-weight: bold; text-align: center; }
       .map-scope .score-msg { color: #f8e3a1; font-weight: bold; }
       </style>
 
       <div class="map-scope">
         <div id="game-ui">
+          <div id="time-status">
+            🕐 TIME: <span id="time-display">0.00</span>s
+          </div>
           <div id="navigation-core">
             <div id="radar-grid"></div>
-            <div id="compass-center"><div id="arrow-wrapper"><div id="arrow">▲</div></div></div>
+            <div id="arrow-wrapper"><div id="arrow">▲</div></div>
           </div>
-          <div class="status-bar">
-            <div>AREA: <span id="map-name-display">---</span></div>
-            <div>TIME: <span id="time-display">0.00</span>s</div>
-          </div>
-          <div id="log"></div>
-          <div class="controls">
-            <div></div><button id="btn-0">前へ</button><div></div>
-            <button id="btn-3">左へ</button>
-            <button id="btn-2" class="back-btn">後を向く</button>
-            <button id="btn-1">右へ</button>
+          <div id="map-details">
+            <div class="status-bar">
+              AREA: <span id="map-name-display">---</span>
+            </div>
+            <div id="log"></div>
+            <div class="controls">
+              <div></div><button id="btn-0">前へ</button><div></div>
+              <button id="btn-3">左へ</button>
+              <button id="btn-2" class="back-btn">後を向く</button>
+              <button id="btn-1">右へ</button>
+            </div>
           </div>
         </div>
       </div>
@@ -888,8 +893,8 @@ closeLvUp() {
     if(this.isPaused || this.p.hp<=0) return;
     // ★ 戦闘中のタイマー表示を更新
     if(this.dom.battleTimer && Store.timerStartAt){
-      const elapsed = Store.elapsedSeconds + Math.floor((Date.now()-Store.timerStartAt)/1000);
-      this.dom.battleTimer.textContent = elapsed.toFixed(0);
+      const elapsed = Store.elapsedSeconds + (Date.now()-Store.timerStartAt)/1000;
+      this.dom.battleTimer.textContent = elapsed.toFixed(2);
     }
     this.enemies.forEach((e,i)=>{
       // ★ 麻痺している敵のタイマーを更新
@@ -996,8 +1001,6 @@ closeLvUp() {
   }
 
   showDamageEffect(enemy, op, rank) {
-    console.log('🎯 showDamageEffect called:', { enemy: enemy.name, op, rank });
-    
     // エフェクトのシンボルとクラスを決定
     const effectMap = {
       '+': { symbol: '🔥', class: 'effect-flame' },
@@ -1006,7 +1009,6 @@ closeLvUp() {
       '÷': { symbol: '💨', class: 'effect-wind' }
     };
     const effect = effectMap[op] || { symbol: '✨', class: 'effect-light' };
-    console.log('✨ Effect selected:', effect);
 
     // レベルに応じた表示回数と大きさを決定
     let effectConfigs = [];
@@ -1025,7 +1027,6 @@ closeLvUp() {
         effectConfigs.push({ size: isSmall ? 'small' : 'large', delay: i * 0.2 });
       }
     }
-    console.log('⚙️ Effect configs:', effectConfigs);
 
     // エフェクトを表示
     const enemyIdx = this.enemies.indexOf(enemy);
@@ -1034,29 +1035,11 @@ closeLvUp() {
     // ★ 重要：エフェクトの親コンテナをbattle-scopeにする（enemyFieldのinnerHTMLで消えないように）
     const battleScope = this.dom.screen.querySelector('.battle-scope');
     
-    console.log('🔍 Enemy field check:', { 
-      enemyIdx, 
-      fieldExists: !!enemyField,
-      battleScopeExists: !!battleScope,
-      fieldPosition: enemyField?.style.position 
-    });
-    
-    if (!enemyField || !battleScope) {
-      console.error('❌ Enemy field or battle scope not found!');
-      return;
-    }
+    if (!enemyField || !battleScope) return;
     
     const enemyEl = enemyField.querySelector(`#enemy-unit-${enemyIdx}`);
-    console.log('🔍 Enemy element:', { 
-      selector: `#enemy-unit-${enemyIdx}`, 
-      found: !!enemyEl,
-      rect: enemyEl?.getBoundingClientRect()
-    });
     
-    if (!enemyEl) {
-      console.error('❌ Enemy unit element not found!');
-      return;
-    }
+    if (!enemyEl) return;
     
     // 敵ユニットに被ダメージエフェクトを追加
     enemyEl.classList.add('damaged');
@@ -1069,10 +1052,7 @@ closeLvUp() {
       setTimeout(() => {
         // 毎回敵要素を再取得（renderEnemiesで再描画される可能性があるため）
         const currentEnemyEl = enemyField.querySelector(`#enemy-unit-${enemyIdx}`);
-        if (!currentEnemyEl) {
-          console.warn(`⚠️ Enemy unit ${enemyIdx} not found during effect display`);
-          return;
-        }
+        if (!currentEnemyEl) return;
         
         const effectEl = document.createElement('div');
         effectEl.className = `effect ${config.size === 'small' ? 'effect-small' : ''} ${effect.class}`;
@@ -1099,21 +1079,11 @@ closeLvUp() {
         effectEl.style.left = finalX + 'px';
         effectEl.style.top = finalY + 'px';
         
-        console.log(`💥 Effect ${idx} created at:`, { 
-          left: finalX, 
-          top: finalY, 
-          size: config.size,
-          class: effectEl.className
-        });
-        
         // ★ battle-scopeに追加（enemyFieldではなく）
         battleScope.appendChild(effectEl);
         
         // アニメーション終了後にDOM削除
-        setTimeout(() => {
-          effectEl.remove();
-          console.log(`🗑️ Effect ${idx} removed`);
-        }, 1500);
+        setTimeout(() => effectEl.remove(), 1500);
       }, config.delay * 1000);
     });
   }

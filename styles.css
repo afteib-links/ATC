@@ -2,6 +2,7 @@
 :root{
   --bg:#0b1020;--panel:#111827;--text:#e5e7eb;--muted:#9ca3af;
   --brand:#60a5fa;--brand-strong:#3b82f6;--border:#1f2937;
+  --footer-h:56px;
 }
 *{box-sizing:border-box}
 html,body{margin:0;padding:0;background:var(--bg);color:var(--text);
@@ -14,7 +15,7 @@ html,body{margin:0;padding:0;background:var(--bg);color:var(--text);
 .nav a{display:inline-block;padding:.5rem .75rem;border:1px solid transparent;border-radius:.5rem;color:var(--text);text-decoration:none}
 .nav a:hover{background:rgba(255,255,255,.06)}
 .nav a[aria-current="page"]{color:#fff;background:rgba(59,130,246,.15);border-color:rgba(59,130,246,.25)}
-#app{max-width:1080px;margin:0 auto;padding:1rem;border-top:1px solid var(--border)}
+#app{max-width:1080px;margin:0 auto;padding:1rem 1rem calc(1rem + var(--footer-h)) 1rem;border-top:1px solid var(--border)}
 .panel{background:rgba(17,24,39,.8);border:1px solid var(--border);border-radius:1rem;padding:1.25rem}
 .button{display:inline-flex;align-items:center;gap:.5rem;padding:.6rem .9rem;border-radius:.6rem;
   border:1px solid rgba(255,255,255,.08);background:linear-gradient(180deg,rgba(96,165,250,.16),rgba(59,130,246,.14));color:#eaf2ff;text-decoration:none;cursor:pointer}
@@ -31,14 +32,30 @@ html,body{margin:0;padding:0;background:var(--bg);color:var(--text);
 .flex{display:flex;gap:.75rem;align-items:center;flex-wrap:wrap}
 .right{margin-left:auto}
 
+.persistent-footer{position:fixed;left:0;right:0;bottom:0;max-width:none;
+  display:flex;align-items:center;justify-content:center;gap:.75rem;
+  padding:.6rem 1rem;background:rgba(17,24,39,.9);border-top:1px solid var(--border);
+  backdrop-filter:blur(6px);z-index:2000}
+.persistent-footer .button{margin:0}
+
+.settings-overlay{position:fixed;inset:0;display:none;align-items:center;justify-content:center;
+  background:rgba(0,0,0,.6);z-index:3000;padding:1rem}
+.settings-overlay.is-open{display:flex}
+.settings-panel{width:min(480px,92vw);background:var(--panel);border:1px solid var(--border);
+  border-radius:1rem;padding:1rem}
+.settings-header{display:flex;align-items:center;justify-content:space-between;gap:1rem;margin-bottom:1rem}
+.settings-body{display:flex;flex-direction:column;gap:.75rem}
+.settings-row{display:flex;flex-direction:column;gap:.5rem;font-size:.95rem}
+.settings-select{width:100%;padding:.6rem .75rem;border-radius:.6rem;
+  border:1px solid var(--border);background:#111827;color:var(--text)}
+
 /* 戦闘中全画面にするためのクラス */
 body.battle-mode {
   overflow: hidden;               /* スクロール禁止（必要なら） */
 }
 
-body.battle-mode .site-header,
-body.battle-mode .site-footer {
-  display: none !important;       /* ヘッダー/フッターを隠す */
+body.battle-mode .site-header {
+  display: none !important;       /* ヘッダーを隠す */
 }
 
 body.battle-mode #app {

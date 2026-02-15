@@ -2,14 +2,14 @@
 :root{
   --bg:#0b1020;--panel:#111827;--text:#e5e7eb;--muted:#9ca3af;
   --brand:#60a5fa;--brand-strong:#3b82f6;--border:#1f2937;
-  --header-h:48px;
-  --footer-h:48px;
+  --header-h:50px;
+  --footer-h:50px;
 }
 *{box-sizing:border-box}
 html,body{margin:0;padding:0;background:var(--bg);color:var(--text);
   font-family:system-ui,-apple-system,Segoe UI,Roboto,"Hiragino Kaku Gothic ProN","Noto Sans JP","Yu Gothic UI","Yu Gothic",Meiryo,sans-serif;
   line-height:1.6; touch-action: manipulation; -ms-touch-action: manipulation;}
-.site-header,.site-footer{max-width:1080px;margin:0 auto;padding:.35rem .75rem}
+.site-header,.site-footer{max-width:1080px;margin:0 auto;padding:.1rem .2rem}
 .site-header{display:flex;align-items:center;justify-content:space-between;min-height:var(--header-h)}
 .site-title{margin:0;font-size:1rem;line-height:1.2}
 .nav{list-style:none;margin:0;padding:0;display:flex;gap:.5rem}
@@ -64,6 +64,6 @@ body.battle-mode #app {
 body.battle-mode #battle-root {
   /* 戦闘ルートの描画領域を、アドレスバーの揺らぎに強い 100dvh で全画面化 */
   height: calc(100dvh - var(--header-h) - var(--footer-h));
-  width: 100vw;
+  width: 100%;
   overflow: hidden;               /* 内側スクロールも禁止。必要に応じて auto に */
 }

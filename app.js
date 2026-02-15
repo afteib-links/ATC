@@ -614,11 +614,12 @@ class BattleEngine {
         box-sizing: border-box;
         /* 画面幅が狭い場合は縮小 */
         transform-origin: top center;
+        transform: scale(0.95);
       }
       @media (max-width: 520px) {
         .battle-scope #game-screen {
           max-width: 100vw;
-          transform: scale(calc(100vw / 480));
+          transform: scale(calc((100vw / 480) * 0.95));
           /* 480px基準で縮小 */
         }
       }

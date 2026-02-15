@@ -122,6 +122,7 @@ const Store = {
   floorDeaths: DEFAULTS.run.floorDeaths,
   mode: DEFAULTS.run.mode,
   arenaIndex: DEFAULTS.run.arenaIndex,
+  pendingEnemyIndex: null,
   lastResultStamp: null,
 
   // フロアごとの状態（位置・歩数・撃破記録）
@@ -160,24 +161,28 @@ function currentDifficulty(){ return Store.difficulty || CONFIG.difficulties[1];
 function normalizeMode(mode){ return mode === 'arena' ? 'arena' : 'quest'; }
 function modeLabel(mode){ return normalizeMode(mode) === 'arena' ? '闘技場' : 'クエスト'; }
 function elapsedNow(){ return Store.elapsedSeconds + (Store.timerStartAt ? Math.floor((Date.now()-Store.timerStartAt)/1000) : 0); }
-function getArenaStages(){
+function getArenaEnemies(){
   const floors = (typeof STAGE_MASTER !== 'undefined' && STAGE_MASTER) ? STAGE_MASTER : [];
-  return floors.flatMap((floor, floorIdx)=> (floor.stages || []).map(stage=>({
-    floorIdx,
-    stageId: stage.id
-  })));
+  return floors.flatMap((floor, floorIdx)=> (floor.stages || []).flatMap(stage=>
+    (stage.enemies || []).map((enemy, enemyIdx)=>({
+      floorIdx,
+      stageId: stage.id,
+      enemyIdx
+    }))
+  ));
 }
-function getArenaStageAt(index){
-  const list = getArenaStages();
+function getArenaEnemyAt(index){
+  const list = getArenaEnemies();
   return list[index] || null;
 }
-function setArenaStage(index){
+function setArenaEnemy(index){
   Store.arenaIndex = Math.max(0, index|0);
-  const stage = getArenaStageAt(Store.arenaIndex);
-  if(!stage) return null;
-  Store.floorIndex = stage.floorIdx;
-  Store.pendingEventId = stage.stageId;
-  return stage;
+  const item = getArenaEnemyAt(Store.arenaIndex);
+  if(!item) return null;
+  Store.floorIndex = item.floorIdx;
+  Store.pendingEventId = item.stageId;
+  Store.pendingEnemyIndex = item.enemyIdx;
+  return item;
 }
 function computeScore(){
   const t = Store.elapsedSeconds;
@@ -224,6 +229,8 @@ function applySaveData(data){
   Store.arenaIndex = data?.arenaIndex ?? DEFAULTS.run.arenaIndex;
   Store.settings = data?.settings || cloneDefault(DEFAULTS.settings);
   Store.lastResultStamp = null;
+  Store.pendingEnemyIndex = null;
+  if(Store.mode === 'arena') setArenaEnemy(Store.arenaIndex);
   ensureFloorState(Store.floorIndex);
   Store.timerStartAt = null;
   startRunTimer();
@@ -578,7 +585,7 @@ const BATTLE_CSS_SCOPED = `.battle-scope{
       --correct: #4ade80; --wrong: #f87171;
     }.battle-scope *{ box-sizing: border-box; -webkit-tap-highlight-color: rgba(0,0,0,0.1); }.battle-scope{ font-family: 'Helvetica Neue', Arial, sans-serif; background: var(--bg); color: #fff; margin: 0; display: flex; justify-content: center; min-height: 100%; height: 100%; overflow: hidden; padding: 0; }.battle-scope /* 背景色の遷移を滑らかにする設定 */
     #game-screen{ 
-      width: 100%; max-width: 100vw; min-height: 100%; height: 100%;
+      width: min(100vw, 456px); max-width: 456px; min-height: 100%; height: 100%;
       display: flex; flex-direction: column; position: relative; 
       background: #111; border: none;
       transition: background 1.0s ease;
@@ -586,14 +593,14 @@ const BATTLE_CSS_SCOPED = `.battle-scope{
       padding: 0;
     }
         @media (min-width: 481px) {
-            #game-screen { max-width: 480px; border: 1px solid #333; }
+            #game-screen { border: 1px solid #333; }
         }.battle-scope .overlay{ position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.95); z-index: 5000; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 10px; overflow-y: auto; }.battle-scope .modal-inner{ background: var(--panel); padding: 15px; border: 3px solid var(--gold); border-radius: 15px; width: 100%; max-width: 420px; max-height: 90vh; overflow-y: auto; }.battle-scope .btn{ cursor: pointer; border: none; border-radius: 8px; font-weight: bold; color: #000; width: 100%; padding: 14px; margin: 8px 0; font-size: 16px; transition: all 0.2s; touch-action: manipulation; user-select: none; min-height: 48px; }.battle-scope .btn:active{ transform: scale(0.95); opacity: 0.8; background: rgba(251, 191, 36, 0.8); }.battle-scope .btn-main{ background: var(--gold); color: #000; }.battle-scope /* セレクトボックスのスタイル */
         .select-style{
             width: 100%; padding: 12px; border-radius: 8px; background: #334155; color: white;
             border: 1px solid var(--gold); font-size: 16px; margin-bottom: 10px; appearance: none;
             background-image: url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='white' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3e%3cpolyline points='6 9 12 15 18 9'%3e%3c/polyline%3e%3c/svg%3e");
             background-repeat: no-repeat; background-position: right 10px center; background-size: 1em;
-        }.battle-scope #enemy-field{ flex: 2.3; display: flex; flex-direction: row; justify-content: center; align-items: center; flex-wrap: wrap; gap: 3px; padding: 0 3px 3px; background: rgba(0,0,0,0.4); overflow-x: hidden; overflow-y: visible; }.battle-scope .enemy-unit{ flex: 1; min-width: 70px; max-width: 110px; border: 2px solid #555; border-radius: 10px; padding: 6px; display: flex; flex-direction: column; align-items: center; background: var(--panel); cursor: pointer; position: relative; transition: 0.2s; min-height: 120px; touch-action: manipulation; }.battle-scope .enemy-unit:active{ transform: scale(0.97); background: rgba(30, 41, 59, 0.9); }.battle-scope .enemy-unit.target{ border-color: var(--gold); box-shadow: 0 0 15px var(--gold); transform: scale(1.05); z-index: 10; }.battle-scope .target-indicator{ display: none !important; }.battle-scope .bar-outer{ width: 100%; height: 18px; background: #000; border-radius: 7px; overflow: hidden; position: relative; border: 1px solid #444; margin: 4px 0; }.battle-scope .bar-inner{ height: 100%; position: absolute; left: 0; transition: width 0.3s; }.battle-scope .hp-text{ position: absolute; width: 100%; text-align: center; font-size: 12px; font-weight: bold; line-height: 14px; z-index: 10; color: #fff; text-shadow: 1px 1px 1px #000; }.battle-scope #p-panel{ flex: 0.8; padding: 3px; background: var(--panel); border-top: 2px solid #333; }.battle-scope #stats-grid{ display: grid; grid-template-columns: repeat(3, 1fr); font-size: 13px; gap: 3px; margin-top: 3px; color: #94a3b8; }.battle-scope #hand-row{ flex: 1.0; display: flex; justify-content: space-between; gap: 4px; padding: 8px 4px; border-top: 2px solid #333; background: #0f172a; }.battle-scope .card-container{ flex: 1; display: flex; flex-direction: column; gap: 4px; }.battle-scope .card{ height: 50px; min-height: 50px; border: 2px solid #fff; border-radius: 3px; display: flex; flex-direction: column; align-items: center; justify-content: center; cursor: pointer; transition: 0.2s; touch-action: manipulation; }.battle-scope .card:active{ transform: scale(0.95); opacity: 0.9; }.battle-scope .card.locked{ opacity: 0.3; cursor: not-allowed; filter: grayscale(1); }.battle-scope .card.active{ border-color: var(--gold); box-shadow: 0 0 10px var(--gold); transform: scale(1.05); }.battle-scope .plus{ background: #991b1b; }.battle-scope .minus{ background: #1e3a8a; }.battle-scope .mul{ background: #5b21b6; }.battle-scope .div{ background: #065f46; }.battle-scope .nan{ background: #431407; }.battle-scope .discard-btn{ font-size: 8px; background: #450a0a; color: #f87171; border: 1px solid #991b1b; border-radius: 4px; padding: 2px 0; min-height: 14px; text-align: center; cursor: pointer; touch-action: manipulation; }.battle-scope .discard-btn:active{ background: #7f1d1d; transform: scale(0.95); }.battle-scope #keypad{ flex: 1.5; display: grid; grid-template-columns: repeat(3, 1fr); gap: 5px; padding: 3px 3px; background: #1e293b; }.battle-scope .key{ background: #334155; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 24px; font-weight: bold; cursor: pointer; border-bottom: 4px solid #0f172a; min-height: 35px; touch-action: manipulation; user-select: none; }.battle-scope .key:active{ background: #475569; transform: translateY(2px); border-bottom: 2px solid #0f172a; }.battle-scope #feedback{ position: absolute; top: 40%; left: 50%; transform: translate(-50%, -50%); font-size: 22px; font-weight: bold; z-index: 100; pointer-events: none; opacity: 0; text-align: center; width: 90%; text-shadow: 2px 2px 4px #000; }.battle-scope .show{ opacity: 1 !important; transition: 0.2s; }@media (min-width: 900px){ .battle-scope #enemy-field{ flex: 2.1; } .battle-scope #p-panel{ flex: 0.9; } }`;
+        }.battle-scope #enemy-field{ flex: 2.7; display: flex; flex-direction: row; justify-content: center; align-items: center; flex-wrap: wrap; gap: 3px; padding: 0 3px 3px; background: rgba(0,0,0,0.4); overflow: hidden; }.battle-scope .enemy-unit{ flex: 1; min-width: 70px; max-width: 110px; border: 2px solid #555; border-radius: 10px; padding: 6px; display: flex; flex-direction: column; align-items: center; background: var(--panel); cursor: pointer; position: relative; transition: 0.2s; min-height: 120px; touch-action: manipulation; }.battle-scope .enemy-unit:active{ transform: scale(0.97); background: rgba(30, 41, 59, 0.9); }.battle-scope .enemy-unit.target{ border-color: var(--gold); box-shadow: 0 0 15px var(--gold); transform: scale(1.05); z-index: 10; }.battle-scope .target-indicator{ display: none !important; }.battle-scope .bar-outer{ width: 100%; height: 18px; background: #000; border-radius: 7px; overflow: hidden; position: relative; border: 1px solid #444; margin: 4px 0; }.battle-scope .bar-inner{ height: 100%; position: absolute; left: 0; transition: width 0.3s; }.battle-scope .hp-text{ position: absolute; width: 100%; text-align: center; font-size: 12px; font-weight: bold; line-height: 14px; z-index: 10; color: #fff; text-shadow: 1px 1px 1px #000; }.battle-scope #p-panel{ flex: 0.7; padding: 3px; background: var(--panel); border-top: 2px solid #333; }.battle-scope #stats-grid{ display: grid; grid-template-columns: repeat(3, 1fr); font-size: 13px; gap: 3px; margin-top: 3px; color: #94a3b8; }.battle-scope #hand-row{ flex: 1.0; display: flex; justify-content: space-between; gap: 4px; padding: 10px 4px 8px; border-top: 2px solid #333; background: #0f172a; }.battle-scope .card-container{ flex: 1; display: flex; flex-direction: column; gap: 4px; }.battle-scope .card{ height: 50px; min-height: 50px; border: 2px solid #fff; border-radius: 3px; display: flex; flex-direction: column; align-items: center; justify-content: center; cursor: pointer; transition: 0.2s; touch-action: manipulation; }.battle-scope .card:active{ transform: scale(0.95); opacity: 0.9; }.battle-scope .card.locked{ opacity: 0.3; cursor: not-allowed; filter: grayscale(1); }.battle-scope .card.active{ border-color: var(--gold); box-shadow: 0 0 10px var(--gold); transform: scale(1.05); }.battle-scope .plus{ background: #991b1b; }.battle-scope .minus{ background: #1e3a8a; }.battle-scope .mul{ background: #5b21b6; }.battle-scope .div{ background: #065f46; }.battle-scope .nan{ background: #431407; }.battle-scope .discard-btn{ font-size: 8px; background: #450a0a; color: #f87171; border: 1px solid #991b1b; border-radius: 4px; padding: 2px 0; min-height: 14px; text-align: center; cursor: pointer; touch-action: manipulation; }.battle-scope .discard-btn:active{ background: #7f1d1d; transform: scale(1); }.battle-scope #keypad{ flex: 1.5; display: grid; grid-template-columns: repeat(3, 1fr); gap: 5px; padding: 3px 3px; background: #1e293b; margin-bottom: 8px; }.battle-scope .key{ background: #334155; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 24px; font-weight: bold; cursor: pointer; border-bottom: 4px solid #0f172a; min-height: 35px; touch-action: manipulation; user-select: none; }.battle-scope .key:active{ background: #475569; transform: translateY(2px); border-bottom: 2px solid #0f172a; }.battle-scope #feedback{ position: absolute; top: 40%; left: 50%; transform: translate(-50%, -50%); font-size: 22px; font-weight: bold; z-index: 100; pointer-events: none; opacity: 0; text-align: center; width: 90%; text-shadow: 2px 2px 4px #000; }.battle-scope .show{ opacity: 1 !important; transition: 0.2s; }@media (min-width: 900px){ .battle-scope #enemy-field{ flex: 2.7; } .battle-scope #p-panel{ flex: 0.7; } }`;
 
 /* ------------------------------
   BattleEngine
@@ -614,25 +621,25 @@ class BattleEngine {
         box-sizing: border-box;
         /* 画面幅が狭い場合は縮小 */
         transform-origin: top center;
-        transform: scale(0.95);
+        transform: scale(0.97);
       }
       @media (max-width: 520px) {
         .battle-scope #game-screen {
           max-width: 100vw;
-          transform: scale(calc((100vw / 480) * 0.95));
+          transform: scale(calc((100vw / 480) * 0.97));
           /* 480px基準で縮小 */
         }
       }
       .battle-scope #hand-row {
         flex: 1;
-        min-height: 90px;
-        max-height: 180px;
+        min-height: 50px;
+        max-height: 200px;
         align-items: flex-end;
         gap: 8px;
       }
       .battle-scope .card-container {
-        min-width: 70px;
-        max-width: 110px;
+        min-width: 50px;
+        max-width: 500px;
         flex: 1 1 0;
         display: flex;
         flex-direction: column;
@@ -641,9 +648,9 @@ class BattleEngine {
       }
       .battle-scope .card {
         width: 100%;
-        height: 50px;
+        height: 1rem;
         min-height: 50px;
-        max-width: 110px;
+        max-width: 500px;
         border: 2px solid #fff;
         border-radius: 8px;
         display: flex;
@@ -655,9 +662,9 @@ class BattleEngine {
         touch-action: manipulation;
       }
       @media (max-width: 600px) {
-        .battle-scope #hand-row { min-height: 60px; max-height: 110px; gap: 4px; }
-        .battle-scope .card-container { min-width: 44px; max-width: 70px; }
-        .battle-scope .card { min-height: 48px; height: 48px; max-width: 70px; }
+        .battle-scope #hand-row { min-height: 50px; max-height: 200px; gap: 4px; }
+        .battle-scope .card-container { min-width: 70px; max-width: 500px; }
+        .battle-scope .card { min-height: 50px; height: 50px; max-width: 500px; }
       }
       /* 問題・答え欄の強調とレイアウト調整 */
       .battle-scope #prob-txt {
@@ -683,14 +690,14 @@ class BattleEngine {
       }
       .battle-scope #hand-row {
         flex: 1;
-        min-height: 80px;
-        max-height: 160px;
+        min-height: 70px;
+        max-height: 200px;
         overflow-y: visible;
         align-items: flex-end;
       }
       .battle-scope .card-container {
         min-width: 60px;
-        max-width: 90px;
+        max-width: 180px;
         flex: 1 1 0;
         display: flex;
         flex-direction: column;
@@ -699,18 +706,18 @@ class BattleEngine {
       }
       .battle-scope .discard-btn {
         font-size: 0.6rem;
-        min-height: 22px;
-        padding: 6px 0;
-        margin-top: 2px;
+        min-height: 10px;
+        padding: 0px 0;
+        margin-top: 0px;
         width: 100%;
         box-sizing: border-box;
       }
       @media (max-width: 600px) {
         .battle-scope #prob-txt { font-size: 1.3rem; }
         .battle-scope #ans-display { font-size: 1.6rem; min-height: 1.8em; max-height: 2.6em; }
-        .battle-scope #hand-row { min-height: 60px; max-height: 110px; }
+        .battle-scope #hand-row { min-height: 70px; max-height: 110px; }
         .battle-scope .card-container { min-width: 44px; max-width: 70px; }
-        .battle-scope .discard-btn { font-size: 0.6rem; min-height: 10px; }
+        .battle-scope .discard-btn { font-size: 0.6rem; min-height: 8px; }
       }
       /* 破棄ボタンが隠れないように余白を調整 */
       .battle-scope #game-screen > div:nth-child(4) { margin-bottom: 0.2em; }
@@ -759,7 +766,7 @@ class BattleEngine {
           <div id="feedback"></div>
           <div style="flex:1.0; display:flex; flex-direction:column; align-items:center; justify-content:center; background:rgba(0,0,0,0.6); border-top: 1px solid #333;">
             <div id="prob-txt" style="color:#94a3b8; font-weight:bold; font-size:28px; margin-bottom:4px;">カードを選択してください</div>
-            <div id="ans-display" style="font-size:26px; color:var(--gold); min-height:40px; font-family: monospace;"></div>
+            <div id="ans-display" style="font-size:32px; font-weight:bold; color:var(--gold); min-height:40px; font-family: monospace;"></div>
           </div>
           <div id="keypad">
             <div class="key">1</div><div class="key">2</div><div class="key">3</div>
@@ -835,10 +842,11 @@ class BattleEngine {
     this.updateUI();
   }
 
-  startBattle({ player, floorIdx, stageId, grade }){
+  startBattle({ player, floorIdx, stageId, grade, overrideEnemies }){
     this.currentGrade = grade || '初級';
     this.floorIdx = Math.max(0, Math.min(floorIdx ?? 0, this.STAGE_MASTER.length-1));
     this.currentStage = Math.max(1, Math.min(stageId ?? 1, 10));
+    this.overrideEnemies = Array.isArray(overrideEnemies) ? overrideEnemies : null;
     if(player){
       this.p.lv = player.level ?? this.p.lv;
       this.p.atk = player.stats?.atk ?? this.p.atk;
@@ -856,7 +864,8 @@ class BattleEngine {
     // ★ 先頭敵名を保持（描画前でも取れるように）
     const floorData = this.STAGE_MASTER[floorIdx] || this.STAGE_MASTER[0];
     const stageData = (floorData.stages || []).find(s => s.id === this.currentStage) || floorData.stages?.[0] || {};
-    this._primaryEnemyName = (stageData.enemies && stageData.enemies[0]?.name) || '???';
+    const enemiesForName = this.overrideEnemies || stageData.enemies || [];
+    this._primaryEnemyName = enemiesForName[0]?.name || '???';
 
     if (!this.tickInterval) this.tickInterval = setInterval(() => this.tick(), 100);
   }
@@ -1222,8 +1231,9 @@ closeLvUp() {
     this.dom.screen.style.background = floorData.bg || '#111';
     this.dom.pFloor.textContent = floorData.floor || '';
     const stageData = (floorData.stages||[]).find(s=>s.id===this.currentStage) || (floorData.stages||[])[0];
+    const enemiesSource = this.overrideEnemies || stageData.enemies || [];
     const resolveStat = this._resolveStat;
-    this.enemies = stageData.enemies.map(en => ({
+    this.enemies = enemiesSource.map(en => ({
       ...en,
       hp: resolveStat(en.hp),
       cur: 0,
@@ -1341,7 +1351,7 @@ closeLvUp() {
    画面：タイトル
 ------------------------------ */
 function TitleScreen(){}
-TitleScreen.title = '算術の塔 v1.2.16';
+TitleScreen.title = '算術の塔 v1.2.17';
 TitleScreen.render = () => {
   const saves = SaveSystem.list();
   const diffBtns = CONFIG.difficulties.map(d=>`<button class="button" data-diff="${d.id}">${d.label}</button>`).join('');
@@ -1397,9 +1407,10 @@ TitleScreen.afterRender = () => {
       Store.settings = cloneDefault(DEFAULTS.settings);
       Store.mode = normalizeMode(selectedMode);
       Store.arenaIndex = DEFAULTS.run.arenaIndex;
+      Store.pendingEnemyIndex = null;
       if(Store.mode === 'arena'){
-        const stage = setArenaStage(0);
-        if(!stage){
+        const item = setArenaEnemy(0);
+        if(!item){
           alert('闘技場データがありません');
           return;
         }
@@ -1417,8 +1428,8 @@ TitleScreen.afterRender = () => {
       if(!s) return;
       applySaveData(s);
       if(normalizeMode(Store.mode) === 'arena'){
-        const stage = getArenaStageAt(Store.arenaIndex) || setArenaStage(Store.arenaIndex);
-        if(!stage){
+        const item = getArenaEnemyAt(Store.arenaIndex) || setArenaEnemy(Store.arenaIndex);
+        if(!item){
           location.hash = '/result';
           return;
         }
@@ -1531,12 +1542,12 @@ MapScreen.render = () => {
 };
 MapScreen.afterRender = () => {
   if(normalizeMode(Store.mode) === 'arena'){
-    const stage = getArenaStageAt(Store.arenaIndex) || setArenaStage(Store.arenaIndex);
-    if(!stage){
+    const item = getArenaEnemyAt(Store.arenaIndex) || setArenaEnemy(Store.arenaIndex);
+    if(!item){
       location.hash = '/result';
       return;
     }
-    if(typeof Store.pendingEventId !== 'number') setArenaStage(Store.arenaIndex);
+    if(typeof Store.pendingEventId !== 'number') setArenaEnemy(Store.arenaIndex);
     location.hash = '/battle';
     return;
   }
@@ -1754,8 +1765,8 @@ BattleScreen.afterRender = () => {
     if(normalizeMode(Store.mode) === 'arena'){
       if(result === 'win'){
         Store.arenaIndex += 1;
-        const nextStage = setArenaStage(Store.arenaIndex);
-        if(nextStage){
+        const nextItem = setArenaEnemy(Store.arenaIndex);
+        if(nextItem){
           location.hash = '/battle';
           return;
         }
@@ -1771,17 +1782,22 @@ BattleScreen.afterRender = () => {
   // BattleEngine に “現在のステージ情報” を持たせておく
   let stageId = Math.max(1, Math.min(parseInt(Store.pendingEventId || 1, 10), 10));
   let floorIdx = Math.max(0, Store.floorIndex);
+  let overrideEnemies = null;
   if(normalizeMode(Store.mode) === 'arena'){
-    const stage = getArenaStageAt(Store.arenaIndex) || setArenaStage(Store.arenaIndex);
-    if(stage){
-      stageId = stage.stageId;
-      floorIdx = stage.floorIdx;
+    const item = getArenaEnemyAt(Store.arenaIndex) || setArenaEnemy(Store.arenaIndex);
+    if(item){
+      stageId = item.stageId;
+      floorIdx = item.floorIdx;
+      const floorData = (typeof STAGE_MASTER !== 'undefined' ? STAGE_MASTER[floorIdx] : null) || {};
+      const stageData = (floorData.stages || []).find(s => s.id === stageId) || {};
+      const enemy = (stageData.enemies || [])[item.enemyIdx];
+      if(enemy) overrideEnemies = [{ ...enemy }];
     }
   }
   const grade = currentDifficulty().grade;
 
   console.log(`[DEBUG] Starting battle - floorIdx: ${floorIdx}, stageId: ${stageId}`);
-  battle.startBattle({ player: Store.player, floorIdx, stageId, grade });
+  battle.startBattle({ player: Store.player, floorIdx, stageId, grade, overrideEnemies });
   
   console.log(`[DEBUG] Starting battle - floorIdx: ${floorIdx}, stageId: ${stageId}`);
 };
@@ -1884,7 +1900,7 @@ function router(){
   app.setAttribute('aria-busy','true');
   app.innerHTML = page.render();
   page.afterRender?.();
-  document.title = `${page.title} - 算術の塔 v1.2.16`;
+  document.title = `${page.title} - 算術の塔 v1.2.17`;
   // （ナビの aria-current の付け替え等は既存通り）
   app.removeAttribute('aria-busy');
 }

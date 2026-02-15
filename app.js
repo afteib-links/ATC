@@ -63,6 +63,26 @@ const CONFIG = {
 };
 
 /* ------------------------------
+   初期値
+------------------------------ */
+const DEFAULTS = {
+  player: { level:1, exp:0, stats:{hp:100, atk:15, def:5, spd:5} },
+  settings: {
+    controlMode: 'relative',
+    clickToMove: true,
+    radar: { w: 5, h: 5 }
+  },
+  run: {
+    deaths: 0,
+    floorDeaths: 0,
+    mode: 'quest',
+    arenaIndex: 0
+  }
+};
+
+const cloneDefault = (value)=> JSON.parse(JSON.stringify(value));
+
+/* ------------------------------
   セーブ管理
 ------------------------------ */
 const SaveSystem = (() => {
@@ -97,7 +117,12 @@ const Store = {
   timerStartAt: null,
   elapsedSeconds: 0,
   totalKills: 0,
-  player: { level:1, exp:0, stats:{hp:100, atk:15, def:5, spd:5} },
+  player: cloneDefault(DEFAULTS.player),
+  deaths: DEFAULTS.run.deaths,
+  floorDeaths: DEFAULTS.run.floorDeaths,
+  mode: DEFAULTS.run.mode,
+  arenaIndex: DEFAULTS.run.arenaIndex,
+  lastResultStamp: null,
 
   // フロアごとの状態（位置・歩数・撃破記録）
   floorStates: {},
@@ -108,11 +133,7 @@ const Store = {
   lastBattle: null,      // { enemyName, result: 'win'|'lose' }
 
   // ★ 追加：マップの操作やレーダー表示の設定
-  settings: {
-    controlMode: 'relative', // 'relative' (既存) / 'absolute'（方位で進む）
-    clickToMove: true,       // レーダークリックで移動
-    radar: { w: 5, h: 5 }    // レーダーの表示範囲（幅×高さ）
-  }
+  settings: cloneDefault(DEFAULTS.settings)
 
 };
 
@@ -136,16 +157,44 @@ function startRunTimer(){ if(!Store.timerStartAt) Store.timerStartAt = Date.now(
 function stopRunTimer(){ if(!Store.timerStartAt) return; Store.elapsedSeconds += Math.floor((Date.now()-Store.timerStartAt)/1000); Store.timerStartAt=null; }
 function resetRunTimer(){ Store.elapsedSeconds = 0; Store.timerStartAt = null; }
 function currentDifficulty(){ return Store.difficulty || CONFIG.difficulties[1]; }
+function normalizeMode(mode){ return mode === 'arena' ? 'arena' : 'quest'; }
+function modeLabel(mode){ return normalizeMode(mode) === 'arena' ? '闘技場' : 'クエスト'; }
 function elapsedNow(){ return Store.elapsedSeconds + (Store.timerStartAt ? Math.floor((Date.now()-Store.timerStartAt)/1000) : 0); }
+function getArenaStages(){
+  const floors = (typeof STAGE_MASTER !== 'undefined' && STAGE_MASTER) ? STAGE_MASTER : [];
+  return floors.flatMap((floor, floorIdx)=> (floor.stages || []).map(stage=>({
+    floorIdx,
+    stageId: stage.id
+  })));
+}
+function getArenaStageAt(index){
+  const list = getArenaStages();
+  return list[index] || null;
+}
+function setArenaStage(index){
+  Store.arenaIndex = Math.max(0, index|0);
+  const stage = getArenaStageAt(Store.arenaIndex);
+  if(!stage) return null;
+  Store.floorIndex = stage.floorIdx;
+  Store.pendingEventId = stage.stageId;
+  return stage;
+}
 function computeScore(){
   const t = Store.elapsedSeconds;
   const kills = Store.totalKills;
   const floor = Store.floorIndex + 1;
+  if (typeof window !== 'undefined' && typeof window.calculateScore === 'function') {
+    return window.calculateScore({
+      elapsedSeconds: t,
+      totalKills: kills,
+      floorIndex: Store.floorIndex,
+      scoreConfig: CONFIG.score
+    });
+  }
   return Math.max(0, Math.floor(CONFIG.score.baseClearBonus + CONFIG.score.timeWeight*t + CONFIG.score.killWeight*kills + CONFIG.score.floorWeight*floor));
 }
-function autosave(meta={}){
-  if(!CONFIG.autosave) return;
-  SaveSystem.append({
+function buildSaveData(meta={}){
+  return {
     ts: Date.now(),
     difficulty: Store.difficulty?.id,
     floorIndex: Store.floorIndex,
@@ -153,9 +202,68 @@ function autosave(meta={}){
     totalKills: Store.totalKills,
     player: Store.player,
     floorStates: Store.floorStates,
+    deaths: Store.deaths,
+    floorDeaths: Store.floorDeaths,
+    mode: Store.mode,
+    arenaIndex: Store.arenaIndex,
+    settings: Store.settings,
     meta
-  });
+  };
 }
+function applySaveData(data){
+  const diffId = data?.difficulty;
+  Store.difficulty = CONFIG.difficulties.find(d=>d.id===diffId) || CONFIG.difficulties[1];
+  Store.floorIndex = data?.floorIndex ?? 0;
+  Store.elapsedSeconds = data?.elapsedSeconds ?? 0;
+  Store.totalKills = data?.totalKills ?? 0;
+  Store.player = data?.player || cloneDefault(DEFAULTS.player);
+  Store.floorStates = data?.floorStates || {};
+  Store.deaths = data?.deaths ?? DEFAULTS.run.deaths;
+  Store.floorDeaths = data?.floorDeaths ?? DEFAULTS.run.floorDeaths;
+  Store.mode = normalizeMode(data?.mode ?? DEFAULTS.run.mode);
+  Store.arenaIndex = data?.arenaIndex ?? DEFAULTS.run.arenaIndex;
+  Store.settings = data?.settings || cloneDefault(DEFAULTS.settings);
+  Store.lastResultStamp = null;
+  ensureFloorState(Store.floorIndex);
+  Store.timerStartAt = null;
+  startRunTimer();
+}
+function autosave(meta={}){
+  if(!CONFIG.autosave) return;
+  SaveSystem.append(buildSaveData(meta));
+}
+
+/* ------------------------------
+   スコア管理（フロア別 Top30）
+------------------------------ */
+const ScoreStore = (() => {
+  const KEY = 'arithmetic_tower_scores_v1';
+  const loadAll = ()=>{ try{return JSON.parse(localStorage.getItem(KEY))||{};}catch{return{};} };
+  const saveAll = (s)=> localStorage.setItem(KEY, JSON.stringify(s));
+  const sortScores = (a,b)=> (
+    (b.score - a.score) ||
+    (a.elapsedSeconds - b.elapsedSeconds) ||
+    (b.totalKills - a.totalKills) ||
+    (a.deaths - b.deaths)
+  );
+  const floorKey = (entry)=> `${entry.floorIndex ?? 0}-${normalizeMode(entry.mode)}`;
+  return {
+    record(entry){
+      const all = loadAll();
+      const key = floorKey(entry);
+      const list = Array.isArray(all[key]) ? all[key] : [];
+      list.push(entry);
+      list.sort(sortScores);
+      all[key] = list.slice(0, 30);
+      saveAll(all);
+    },
+    listByFloor(floorIndex, mode){
+      const all = loadAll();
+      const key = `${floorIndex ?? 0}-${normalizeMode(mode)}`;
+      return (all[key] || []).slice(0, 30);
+    }
+  };
+})();
 
 /* ------------------------------
    MapEngine（添付マップ仕様を踏襲。mapDataを差し替え可能）
@@ -485,7 +593,7 @@ const BATTLE_CSS_SCOPED = `.battle-scope{
             border: 1px solid var(--gold); font-size: 16px; margin-bottom: 10px; appearance: none;
             background-image: url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='white' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3e%3cpolyline points='6 9 12 15 18 9'%3e%3c/polyline%3e%3c/svg%3e");
             background-repeat: no-repeat; background-position: right 10px center; background-size: 1em;
-        }.battle-scope #enemy-field{ flex: 1.7; display: flex; flex-direction: row; justify-content: center; align-items: center; gap: 3px; padding: 3px 3px; background: rgba(0,0,0,0.4); overflow-x: auto; -webkit-overflow-scrolling: touch; }.battle-scope .enemy-unit{ flex: 1; min-width: 70px; max-width: 110px; border: 2px solid #555; border-radius: 10px; padding: 6px; display: flex; flex-direction: column; align-items: center; background: var(--panel); cursor: pointer; position: relative; transition: 0.2s; min-height: 120px; touch-action: manipulation; }.battle-scope .enemy-unit:active{ transform: scale(0.97); background: rgba(30, 41, 59, 0.9); }.battle-scope .enemy-unit.target{ border-color: var(--gold); box-shadow: 0 0 15px var(--gold); transform: scale(1.05); z-index: 10; }.battle-scope .target-indicator{ position: absolute; top: -15px; color: var(--gold); font-weight: bold; font-size: 10px; display: none; }.battle-scope .enemy-unit.target .target-indicator{ display: block; }.battle-scope .bar-outer{ width: 100%; height: 18px; background: #000; border-radius: 7px; overflow: hidden; position: relative; border: 1px solid #444; margin: 4px 0; }.battle-scope .bar-inner{ height: 100%; position: absolute; left: 0; transition: width 0.3s; }.battle-scope .hp-text{ position: absolute; width: 100%; text-align: center; font-size: 12px; font-weight: bold; line-height: 14px; z-index: 10; color: #fff; text-shadow: 1px 1px 1px #000; }.battle-scope #p-panel{ flex: 0.8; padding: 3px; background: var(--panel); border-top: 2px solid #333; }.battle-scope #stats-grid{ display: grid; grid-template-columns: repeat(3, 1fr); font-size: 13px; gap: 3px; margin-top: 3px; color: #94a3b8; }.battle-scope #hand-row{ flex: 1.0; display: flex; justify-content: space-between; gap: 4px; padding: 8px 4px; border-top: 2px solid #333; background: #0f172a; }.battle-scope .card-container{ flex: 1; display: flex; flex-direction: column; gap: 4px; }.battle-scope .card{ height: 75px; min-height: 65px; border: 2px solid #fff; border-radius: 3px; display: flex; flex-direction: column; align-items: center; justify-content: center; cursor: pointer; transition: 0.2s; touch-action: manipulation; }.battle-scope .card:active{ transform: scale(0.95); opacity: 0.9; }.battle-scope .card.locked{ opacity: 0.3; cursor: not-allowed; filter: grayscale(1); }.battle-scope .card.active{ border-color: var(--gold); box-shadow: 0 0 10px var(--gold); transform: scale(1.05); }.battle-scope .plus{ background: #991b1b; }.battle-scope .minus{ background: #1e3a8a; }.battle-scope .mul{ background: #5b21b6; }.battle-scope .div{ background: #065f46; }.battle-scope .nan{ background: #431407; }.battle-scope .discard-btn{ font-size: 8px; background: #450a0a; color: #f87171; border: 1px solid #991b1b; border-radius: 4px; padding: 2px 0; min-height: 14px; text-align: center; cursor: pointer; touch-action: manipulation; }.battle-scope .discard-btn:active{ background: #7f1d1d; transform: scale(0.95); }.battle-scope #keypad{ flex: 1.5; display: grid; grid-template-columns: repeat(3, 1fr); gap: 5px; padding: 3px 3px; background: #1e293b; }.battle-scope .key{ background: #334155; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 24px; font-weight: bold; cursor: pointer; border-bottom: 4px solid #0f172a; min-height: 35px; touch-action: manipulation; user-select: none; }.battle-scope .key:active{ background: #475569; transform: translateY(2px); border-bottom: 2px solid #0f172a; }.battle-scope #feedback{ position: absolute; top: 40%; left: 50%; transform: translate(-50%, -50%); font-size: 22px; font-weight: bold; z-index: 100; pointer-events: none; opacity: 0; text-align: center; width: 90%; text-shadow: 2px 2px 4px #000; }.battle-scope .show{ opacity: 1 !important; transition: 0.2s; }`;
+        }.battle-scope #enemy-field{ flex: 1.7; display: flex; flex-direction: row; justify-content: center; align-items: center; gap: 3px; padding: 3px 3px; background: rgba(0,0,0,0.4); overflow-x: auto; -webkit-overflow-scrolling: touch; }.battle-scope .enemy-unit{ flex: 1; min-width: 70px; max-width: 110px; border: 2px solid #555; border-radius: 10px; padding: 6px; display: flex; flex-direction: column; align-items: center; background: var(--panel); cursor: pointer; position: relative; transition: 0.2s; min-height: 120px; touch-action: manipulation; }.battle-scope .enemy-unit:active{ transform: scale(0.97); background: rgba(30, 41, 59, 0.9); }.battle-scope .enemy-unit.target{ border-color: var(--gold); box-shadow: 0 0 15px var(--gold); transform: scale(1.05); z-index: 10; }.battle-scope .target-indicator{ position: absolute; top: -15px; color: var(--gold); font-weight: bold; font-size: 10px; display: none; }.battle-scope .enemy-unit.target .target-indicator{ display: block; }.battle-scope .bar-outer{ width: 100%; height: 18px; background: #000; border-radius: 7px; overflow: hidden; position: relative; border: 1px solid #444; margin: 4px 0; }.battle-scope .bar-inner{ height: 100%; position: absolute; left: 0; transition: width 0.3s; }.battle-scope .hp-text{ position: absolute; width: 100%; text-align: center; font-size: 12px; font-weight: bold; line-height: 14px; z-index: 10; color: #fff; text-shadow: 1px 1px 1px #000; }.battle-scope #p-panel{ flex: 0.8; padding: 3px; background: var(--panel); border-top: 2px solid #333; }.battle-scope #stats-grid{ display: grid; grid-template-columns: repeat(3, 1fr); font-size: 13px; gap: 3px; margin-top: 3px; color: #94a3b8; }.battle-scope #hand-row{ flex: 1.0; display: flex; justify-content: space-between; gap: 4px; padding: 8px 4px; border-top: 2px solid #333; background: #0f172a; }.battle-scope .card-container{ flex: 1; display: flex; flex-direction: column; gap: 4px; }.battle-scope .card{ height: 50px; min-height: 50px; border: 2px solid #fff; border-radius: 3px; display: flex; flex-direction: column; align-items: center; justify-content: center; cursor: pointer; transition: 0.2s; touch-action: manipulation; }.battle-scope .card:active{ transform: scale(0.95); opacity: 0.9; }.battle-scope .card.locked{ opacity: 0.3; cursor: not-allowed; filter: grayscale(1); }.battle-scope .card.active{ border-color: var(--gold); box-shadow: 0 0 10px var(--gold); transform: scale(1.05); }.battle-scope .plus{ background: #991b1b; }.battle-scope .minus{ background: #1e3a8a; }.battle-scope .mul{ background: #5b21b6; }.battle-scope .div{ background: #065f46; }.battle-scope .nan{ background: #431407; }.battle-scope .discard-btn{ font-size: 8px; background: #450a0a; color: #f87171; border: 1px solid #991b1b; border-radius: 4px; padding: 2px 0; min-height: 14px; text-align: center; cursor: pointer; touch-action: manipulation; }.battle-scope .discard-btn:active{ background: #7f1d1d; transform: scale(0.95); }.battle-scope #keypad{ flex: 1.5; display: grid; grid-template-columns: repeat(3, 1fr); gap: 5px; padding: 3px 3px; background: #1e293b; }.battle-scope .key{ background: #334155; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 24px; font-weight: bold; cursor: pointer; border-bottom: 4px solid #0f172a; min-height: 35px; touch-action: manipulation; user-select: none; }.battle-scope .key:active{ background: #475569; transform: translateY(2px); border-bottom: 2px solid #0f172a; }.battle-scope #feedback{ position: absolute; top: 40%; left: 50%; transform: translate(-50%, -50%); font-size: 22px; font-weight: bold; z-index: 100; pointer-events: none; opacity: 0; text-align: center; width: 90%; text-shadow: 2px 2px 4px #000; }.battle-scope .show{ opacity: 1 !important; transition: 0.2s; }`;
 
 /* ------------------------------
   BattleEngine
@@ -532,8 +640,8 @@ class BattleEngine {
       }
       .battle-scope .card {
         width: 100%;
-        height: 75px;
-        min-height: 65px;
+        height: 50px;
+        min-height: 50px;
         max-width: 110px;
         border: 2px solid #fff;
         border-radius: 8px;
@@ -561,10 +669,10 @@ class BattleEngine {
         letter-spacing: 0.02em;
       }
       .battle-scope #ans-display {
-        font-size: 2.6rem;
+        font-size: 1.6rem;
         color: var(--gold);
-        min-height: 2.8em;
-        max-height: 3.2em;
+        min-height: 1.8em;
+        max-height: 2.6em;
         font-family: monospace;
         text-align: center;
         word-break: break-all;
@@ -598,10 +706,10 @@ class BattleEngine {
       }
       @media (max-width: 600px) {
         .battle-scope #prob-txt { font-size: 1.3rem; }
-        .battle-scope #ans-display { font-size: 1.7rem; min-height: 2.2em; max-height: 2.6em; }
+        .battle-scope #ans-display { font-size: 1.6rem; min-height: 1.8em; max-height: 2.6em; }
         .battle-scope #hand-row { min-height: 60px; max-height: 110px; }
         .battle-scope .card-container { min-width: 44px; max-width: 70px; }
-        .battle-scope .discard-btn { font-size: 0.6rem; min-height: 20px; }
+        .battle-scope .discard-btn { font-size: 0.6rem; min-height: 10px; }
       }
       /* 破棄ボタンが隠れないように余白を調整 */
       .battle-scope #game-screen > div:nth-child(4) { margin-bottom: 0.2em; }
@@ -650,7 +758,7 @@ class BattleEngine {
           <div id="feedback"></div>
           <div style="flex:1.0; display:flex; flex-direction:column; align-items:center; justify-content:center; background:rgba(0,0,0,0.6); border-top: 1px solid #333;">
             <div id="prob-txt" style="color:#94a3b8; font-weight:bold; font-size:28px; margin-bottom:4px;">カードを選択してください</div>
-            <div id="ans-display" style="font-size:32px; color:var(--gold); min-height:50px; font-family: monospace;"></div>
+            <div id="ans-display" style="font-size:26px; color:var(--gold); min-height:40px; font-family: monospace;"></div>
           </div>
           <div id="keypad">
             <div class="key">1</div><div class="key">2</div><div class="key">3</div>
@@ -884,6 +992,7 @@ class BattleEngine {
           const enemy = this.enemies[this.targetIdx];
           enemy.cur = 0;
           enemy.defeated = true; // ★ 倒れた状態をマーク
+          Store.totalKills += 1;
           
           // ★ エフェクトが見えるように1.5秒後に非表示処理
           setTimeout(() => {
@@ -1231,26 +1340,48 @@ closeLvUp() {
    画面：タイトル
 ------------------------------ */
 function TitleScreen(){}
-TitleScreen.title = '算術の塔 v1.2.15';
+TitleScreen.title = '算術の塔 v1.2.16';
 TitleScreen.render = () => {
   const saves = SaveSystem.list();
   const diffBtns = CONFIG.difficulties.map(d=>`<button class="button" data-diff="${d.id}">${d.label}</button>`).join('');
+  const modeBtns = `
+    <button class="button" data-mode="quest">クエスト</button>
+    <button class="button" data-mode="arena">闘技場</button>
+  `;
   const saveList = saves.length ? `
-    <table class="table"><thead><tr><th>スロット</th><th>難易度</th><th>フロア</th><th>経過秒</th><th>更新</th><th></th></tr></thead><tbody>
-      ${saves.map((s,i)=>`<tr><td>${i+1}</td><td>${s.difficulty}</td><td>${(s.floorIndex??0)+1}</td><td>${s.elapsedSeconds}</td><td>${new Date(s.ts).toLocaleString()}</td><td><button class="button" data-continue="${i}">続きから</button></td></tr>`).join('')}
+    <table class="table"><thead><tr><th>スロット</th><th>モード</th><th>難易度</th><th>フロア</th><th>経過秒</th><th>更新</th><th></th></tr></thead><tbody>
+      ${saves.map((s,i)=>`<tr><td>${i+1}</td><td>${modeLabel(s.mode)}</td><td>${s.difficulty}</td><td>${(s.floorIndex??0)+1}</td><td>${s.elapsedSeconds}</td><td>${new Date(s.ts).toLocaleString()}</td><td><button class="button" data-continue="${i}">続きから</button></td></tr>`).join('')}
     </tbody></table>` : `<p class="small">セーブデータはありません</p>`;
 
   return `
     <section class="panel">
       <h2>ゲームスタート</h2>
+      <div class="panel"><h3>ゲームモード</h3><div class="flex">${modeBtns}</div></div>
       <div class="grid grid-2">
         <div class="panel"><h3>難易度選択</h3><div class="flex">${diffBtns}</div></div>
         <div class="panel"><h3>コンティニュー</h3>${saveList}</div>
+      </div>
+      <div class="panel" style="margin-top:1rem">
+        <h3>セーブ/ロード</h3>
+        <div class="flex">
+          <button class="button" id="btn-save-local">ローカル保存</button>
+          <button class="button" id="btn-export-json">JSON出力</button>
+          <button class="button" id="btn-import-json">JSON読込</button>
+          <input type="file" id="input-import-json" accept="application/json" style="display:none" />
+        </div>
+        <p class="small">JSON出力は他端末への移行用データです。</p>
       </div>
       <p class="small">※ マップは maps.js の MAPS 配列に複数登録できます。</p>
     </section>`;
 };
 TitleScreen.afterRender = () => {
+  let selectedMode = Store.mode || DEFAULTS.run.mode;
+  document.querySelectorAll('[data-mode]').forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      selectedMode = normalizeMode(btn.getAttribute('data-mode'));
+      Store.mode = selectedMode;
+    });
+  });
   document.querySelectorAll('[data-diff]').forEach(btn=>{
     btn.addEventListener('click', ()=>{
       const id = btn.getAttribute('data-diff');
@@ -1258,11 +1389,24 @@ TitleScreen.afterRender = () => {
       Store.floorIndex = 0;
       Store.totalKills = 0;
       Store.floorStates = {};
+      Store.deaths = DEFAULTS.run.deaths;
+      Store.floorDeaths = DEFAULTS.run.floorDeaths;
+      Store.lastResultStamp = null;
+      Store.player = cloneDefault(DEFAULTS.player);
+      Store.settings = cloneDefault(DEFAULTS.settings);
+      Store.mode = normalizeMode(selectedMode);
+      Store.arenaIndex = DEFAULTS.run.arenaIndex;
+      if(Store.mode === 'arena'){
+        const stage = setArenaStage(0);
+        if(!stage){
+          alert('闘技場データがありません');
+          return;
+        }
+      }
       ensureFloorState(0);
-      Store.player = { level:1, exp:0, stats:{hp:100, atk:15, def:5, spd:5} };
       resetRunTimer(); startRunTimer();
       autosave({reason:'new'});
-      location.hash = '/map';
+      location.hash = Store.mode === 'arena' ? '/battle' : '/map';
     });
   });
   document.querySelectorAll('[data-continue]').forEach(btn=>{
@@ -1270,18 +1414,59 @@ TitleScreen.afterRender = () => {
       const idx = Number(btn.getAttribute('data-continue'));
       const s = SaveSystem.list()[idx];
       if(!s) return;
-      Store.difficulty = CONFIG.difficulties.find(d=>d.id===s.difficulty) || CONFIG.difficulties[1];
-      Store.floorIndex = s.floorIndex ?? 0;
-      Store.elapsedSeconds = s.elapsedSeconds ?? 0;
-      Store.totalKills = s.totalKills ?? 0;
-      Store.player = s.player || Store.player;
-      Store.floorStates = s.floorStates || {};
-      ensureFloorState(Store.floorIndex);
-      // コンティニュー時はresetRunTimer()を呼ばない（経過時間を保持）
-      Store.timerStartAt = null; // タイマーをリセット
-      startRunTimer(); // タイマーを再開
+      applySaveData(s);
+      if(normalizeMode(Store.mode) === 'arena'){
+        const stage = getArenaStageAt(Store.arenaIndex) || setArenaStage(Store.arenaIndex);
+        if(!stage){
+          location.hash = '/result';
+          return;
+        }
+        location.hash = '/battle';
+        return;
+      }
       location.hash = '/map';
     });
+  });
+
+  const saveLocalBtn = document.getElementById('btn-save-local');
+  const exportBtn = document.getElementById('btn-export-json');
+  const importBtn = document.getElementById('btn-import-json');
+  const importInput = document.getElementById('input-import-json');
+  const hasSaveManager = typeof window !== 'undefined' && window.SaveManager;
+
+  saveLocalBtn?.addEventListener('click', ()=>{
+    SaveSystem.append(buildSaveData({reason:'manual'}));
+  });
+
+  if (!hasSaveManager) {
+    if(exportBtn) exportBtn.disabled = true;
+    if(importBtn) importBtn.disabled = true;
+  }
+
+  exportBtn?.addEventListener('click', ()=>{
+    if(!hasSaveManager) return;
+    const data = buildSaveData({reason:'manual-export'});
+    window.SaveManager.downloadJson(data, `arithmetic_tower_save_${Date.now()}.json`);
+  });
+
+  importBtn?.addEventListener('click', ()=>{
+    if(!hasSaveManager) return;
+    importInput?.click();
+  });
+
+  importInput?.addEventListener('change', async ()=>{
+    if(!hasSaveManager) return;
+    const file = importInput.files?.[0];
+    if(!file) return;
+    try{
+      const data = await window.SaveManager.readJsonFile(file);
+      applySaveData(data);
+      location.hash = '/map';
+    } catch (err){
+      alert('JSON読み込みに失敗しました');
+    } finally {
+      importInput.value = '';
+    }
   });
 };
 
@@ -1291,12 +1476,21 @@ TitleScreen.afterRender = () => {
 function MapScreen(){}
 MapScreen.title = 'マップ';
 MapScreen.render = () => {
+  if(normalizeMode(Store.mode) === 'arena'){
+    return `
+      <section class="panel">
+        <h2>闘技場を準備中...</h2>
+        <p class="small">読み込み後にバトルへ移動します。</p>
+      </section>
+    `;
+  }
   const mapData = getMapData(Store.floorIndex);
   return `
     <section class="panel">
       <div class="flex">
         <h2>フロア ${Store.floorIndex+1}: ${mapData?.name || '---'}</h2>
         <span class="badge">難易度: ${currentDifficulty().label}</span>
+        <span class="badge">モード: ${modeLabel(Store.mode)}</span>
         <span class="badge">経過: ${elapsedNow()} 秒</span>
         <span class="badge">撃破: ${Store.totalKills}</span>
         <span class="right small">Lv ${Store.player.level} / EXP ${Store.player.exp}</span>
@@ -1335,6 +1529,16 @@ MapScreen.render = () => {
   `;
 };
 MapScreen.afterRender = () => {
+  if(normalizeMode(Store.mode) === 'arena'){
+    const stage = getArenaStageAt(Store.arenaIndex) || setArenaStage(Store.arenaIndex);
+    if(!stage){
+      location.hash = '/result';
+      return;
+    }
+    if(typeof Store.pendingEventId !== 'number') setArenaStage(Store.arenaIndex);
+    location.hash = '/battle';
+    return;
+  }
   // ★ 敗北時のフロアリセット処理
   if (Store.lastBattle?.result === 'lose') {
     ensureFloorState(Store.floorIndex);
@@ -1511,6 +1715,8 @@ BattleScreen.afterRender = () => {
     
     // ★ 追加：敗北時のマップリセット処理
     if (result === 'lose') {
+      Store.deaths += 1;
+      Store.floorDeaths += 1;
       // ステータスはそのまま、秒数を+10秒する
       Store.elapsedSeconds += 10;
       // フロアの最初にリセット（特定のマップデータを保全しつつリセット）
@@ -1543,14 +1749,34 @@ BattleScreen.afterRender = () => {
     
     // ★ 重要：戦闘終了後に pendingEventId をクリア（敵が複数回戦えてしまう問題を修正）
     Store.pendingEventId = null;
-    
+
+    if(normalizeMode(Store.mode) === 'arena'){
+      if(result === 'win'){
+        Store.arenaIndex += 1;
+        const nextStage = setArenaStage(Store.arenaIndex);
+        if(nextStage){
+          location.hash = '/battle';
+          return;
+        }
+      }
+      location.hash = '/result';
+      return;
+    }
+
     location.hash = '/map';
   });
 
   // ★ BattleEngine.startBattle() を呼ぶ前に、先頭敵名を引けるよう
   // BattleEngine に “現在のステージ情報” を持たせておく
-  const stageId = Math.max(1, Math.min(parseInt(Store.pendingEventId || 1, 10), 10));
-  const floorIdx = Math.max(0, Store.floorIndex);
+  let stageId = Math.max(1, Math.min(parseInt(Store.pendingEventId || 1, 10), 10));
+  let floorIdx = Math.max(0, Store.floorIndex);
+  if(normalizeMode(Store.mode) === 'arena'){
+    const stage = getArenaStageAt(Store.arenaIndex) || setArenaStage(Store.arenaIndex);
+    if(stage){
+      stageId = stage.stageId;
+      floorIdx = stage.floorIdx;
+    }
+  }
   const grade = currentDifficulty().grade;
 
   console.log(`[DEBUG] Starting battle - floorIdx: ${floorIdx}, stageId: ${stageId}`);
@@ -1567,17 +1793,56 @@ function ResultScreen(){}
 ResultScreen.title = '結果';
 ResultScreen.render = () => {
   const score = computeScore();
+  const entry = {
+    ts: Date.now(),
+    floorIndex: Store.floorIndex,
+    score,
+    elapsedSeconds: Store.elapsedSeconds,
+    totalKills: Store.totalKills,
+    deaths: Store.floorDeaths,
+    mode: normalizeMode(Store.mode)
+  };
+  const stamp = `${entry.floorIndex}-${entry.elapsedSeconds}-${entry.totalKills}-${entry.deaths}-${score}`;
+  if (Store.lastResultStamp !== stamp) {
+    ScoreStore.record(entry);
+    Store.lastResultStamp = stamp;
+  }
+
+  const scoreList = ScoreStore.listByFloor(Store.floorIndex, Store.mode);
+  const scoreRows = scoreList.length ? scoreList.map((s, idx)=>{
+    const date = new Date(s.ts).toLocaleString();
+    return `<tr>
+      <td>${idx+1}</td>
+      <td>${modeLabel(s.mode)}</td>
+      <td>${s.score}</td>
+      <td>${s.elapsedSeconds}</td>
+      <td>${s.totalKills}</td>
+      <td>${s.deaths}</td>
+      <td>${date}</td>
+    </tr>`;
+  }).join('') : `<tr><td colspan="7">データがありません</td></tr>`;
+
   const maps = getMaps();
   const nextExists = (Store.floorIndex + 1) < maps.length;
-  const disabled = nextExists ? '' : 'disabled';
+  const isQuest = normalizeMode(Store.mode) === 'quest';
+  const disabled = (isQuest && nextExists) ? '' : 'disabled';
   return `
     <section class="panel">
       <h2>フロア ${Store.floorIndex+1} クリア！</h2>
       <ul>
+        <li>モード: <strong>${modeLabel(Store.mode)}</strong></li>
         <li>クリアタイム: <strong>${Store.elapsedSeconds} 秒</strong></li>
         <li>撃破数: <strong>${Store.totalKills}</strong></li>
+        <li>死亡数: <strong>${Store.floorDeaths}</strong></li>
         <li>スコア: <strong>${score}</strong></li>
       </ul>
+      <h3>フロア別スコア一覧 (Top 30)</h3>
+      <table class="table">
+        <thead>
+          <tr><th>順位</th><th>モード</th><th>スコア</th><th>時間</th><th>撃破</th><th>死亡</th><th>日時</th></tr>
+        </thead>
+        <tbody>${scoreRows}</tbody>
+      </table>
       <div class="flex" style="margin-top:1rem">
         <button class="button" id="next-floor" ${disabled}>次のフロアへ</button>
         <a class="button" href="#/title" data-link>タイトルへ</a>
@@ -1590,11 +1855,13 @@ ResultScreen.afterRender = () => {
   const btn = document.getElementById('next-floor');
   if(!btn || btn.disabled) return;
   btn.addEventListener('click', ()=>{
+    if(normalizeMode(Store.mode) !== 'quest') return;
     Store.floorIndex += 1;
     const st = ensureFloorState(Store.floorIndex);
     st.position = null; // スタート位置
     st.steps = 0;
     st.defeated = {};
+    Store.floorDeaths = DEFAULTS.run.floorDeaths;
     resetRunTimer(); startRunTimer();
     autosave({reason:'next-floor'});
     location.hash = '/map';
@@ -1616,7 +1883,7 @@ function router(){
   app.setAttribute('aria-busy','true');
   app.innerHTML = page.render();
   page.afterRender?.();
-  document.title = `${page.title} - 算術の塔 v1.2.15`;
+  document.title = `${page.title} - 算術の塔 v1.2.16`;
   // （ナビの aria-current の付け替え等は既存通り）
   app.removeAttribute('aria-busy');
 }

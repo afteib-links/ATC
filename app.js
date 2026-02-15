@@ -38,19 +38,19 @@ const CONFIG = {
   // ★ 追加：Gradeごとのステータスアップ数
   statusUpByGrade: {
     "初級": {
-      hp: 20, atk: 2, def: 2, spd: 1
+      hp: 40, atk: 6, def: 6, spd: 3
     },
     "中級": {
-      hp: 25, atk: 3, def: 3, spd: 1
+      hp: 35, atk: 5, def: 5, spd: 2
     },
     "上級": {
       hp: 30, atk: 4, def: 4, spd: 2
     },
     "超級": {
-      hp: 35, atk: 5, def: 5, spd: 2
+      hp: 25, atk: 3, def: 3, spd: 1
     },
     "極級": {
-      hp: 40, atk: 6, def: 6, spd: 3
+      hp: 20, atk: 2, def: 2, spd: 1
     }
   }
 };
@@ -61,7 +61,7 @@ const SaveSystem = (() => {
   const saveAll = (s)=> localStorage.setItem(KEY, JSON.stringify(s.slice(0, CONFIG.saveSlots)));
   return {
     list: loadAll,
-    append(data){ const s=loadAll(); if(s.length>=CONFIG.saveSlots) s.pop(); s.unshift(data); saveAll(s); }
+    append(data){ const s=loadAll(); s.unshift(data); if(s.length > CONFIG.saveSlots) s.pop(); saveAll(s); }
   };
 })();
 
@@ -154,7 +154,6 @@ class MapEngine {
     this.currentPos = {x:0,y:0};
     this.currentFacing = 0;
     this.startTime = 0;
-    this.VECTORS = [{x:0,y:-1},{x:1,y:0},{x:0,y:1},{x:-1,y:0}];
   }
   on(n,h){ (this.handlers[n] ||= []).push(h); }
   emit(n,p){ (this.handlers[n]||[]).forEach(h=>h(p)); }
@@ -466,7 +465,7 @@ const BATTLE_CSS_SCOPED = `.battle-scope{
             border: 1px solid var(--gold); font-size: 16px; margin-bottom: 10px; appearance: none;
             background-image: url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='white' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3e%3cpolyline points='6 9 12 15 18 9'%3e%3c/polyline%3e%3c/svg%3e");
             background-repeat: no-repeat; background-position: right 10px center; background-size: 1em;
-        }.battle-scope #enemy-field{ flex: 2; display: flex; flex-direction: row; justify-content: center; align-items: center; gap: 6px; padding: 8px 4px; background: rgba(0,0,0,0.4); overflow-x: auto; -webkit-overflow-scrolling: touch; }.battle-scope .enemy-unit{ flex: 1; min-width: 70px; max-width: 110px; border: 2px solid #555; border-radius: 10px; padding: 6px; display: flex; flex-direction: column; align-items: center; background: var(--panel); cursor: pointer; position: relative; transition: 0.2s; min-height: 120px; touch-action: manipulation; }.battle-scope .enemy-unit:active{ transform: scale(0.97); background: rgba(30, 41, 59, 0.9); }.battle-scope .enemy-unit.target{ border-color: var(--gold); box-shadow: 0 0 15px var(--gold); transform: scale(1.05); z-index: 10; }.battle-scope .target-indicator{ position: absolute; top: -15px; color: var(--gold); font-weight: bold; font-size: 10px; display: none; }.battle-scope .enemy-unit.target .target-indicator{ display: block; }.battle-scope .bar-outer{ width: 100%; height: 14px; background: #000; border-radius: 7px; overflow: hidden; position: relative; border: 1px solid #444; margin: 4px 0; }.battle-scope .bar-inner{ height: 100%; position: absolute; left: 0; transition: width 0.3s; }.battle-scope .hp-text{ position: absolute; width: 100%; text-align: center; font-size: 9px; font-weight: bold; line-height: 14px; z-index: 10; color: #fff; text-shadow: 1px 1px 1px #000; }.battle-scope #p-panel{ flex: 1.3; padding: 8px; background: var(--panel); border-top: 2px solid #333; }.battle-scope #stats-grid{ display: grid; grid-template-columns: repeat(3, 1fr); font-size: 10px; gap: 4px; margin-top: 8px; color: #94a3b8; }.battle-scope #hand-row{ flex: 1.0; display: flex; justify-content: space-between; gap: 4px; padding: 8px 4px; border-top: 2px solid #333; background: #0f172a; }.battle-scope .card-container{ flex: 1; display: flex; flex-direction: column; gap: 4px; }.battle-scope .card{ height: 64px; min-height: 64px; border: 2px solid #fff; border-radius: 8px; display: flex; flex-direction: column; align-items: center; justify-content: center; cursor: pointer; transition: 0.2s; touch-action: manipulation; }.battle-scope .card:active{ transform: scale(0.95); opacity: 0.9; }.battle-scope .card.locked{ opacity: 0.3; cursor: not-allowed; filter: grayscale(1); }.battle-scope .card.active{ border-color: var(--gold); box-shadow: 0 0 10px var(--gold); transform: scale(1.05); }.battle-scope .plus{ background: #991b1b; }.battle-scope .minus{ background: #1e3a8a; }.battle-scope .mul{ background: #5b21b6; }.battle-scope .div{ background: #065f46; }.battle-scope .nan{ background: #431407; }.battle-scope .discard-btn{ font-size: 8px; background: #450a0a; color: #f87171; border: 1px solid #991b1b; border-radius: 4px; padding: 6px 0; min-height: 28px; text-align: center; cursor: pointer; touch-action: manipulation; }.battle-scope .discard-btn:active{ background: #7f1d1d; transform: scale(0.95); }.battle-scope #keypad{ flex: 2.0; display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; padding: 8px 4px; background: #1e293b; }.battle-scope .key{ background: #334155; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 24px; font-weight: bold; cursor: pointer; border-bottom: 4px solid #0f172a; min-height: 56px; touch-action: manipulation; user-select: none; }.battle-scope .key:active{ background: #475569; transform: translateY(2px); border-bottom: 2px solid #0f172a; }.battle-scope #feedback{ position: absolute; top: 40%; left: 50%; transform: translate(-50%, -50%); font-size: 22px; font-weight: bold; z-index: 100; pointer-events: none; opacity: 0; text-align: center; width: 90%; text-shadow: 2px 2px 4px #000; }.battle-scope .show{ opacity: 1 !important; transition: 0.2s; }`;
+        }.battle-scope #enemy-field{ flex: 1.7; display: flex; flex-direction: row; justify-content: center; align-items: center; gap: 3px; padding: 3px 3px; background: rgba(0,0,0,0.4); overflow-x: auto; -webkit-overflow-scrolling: touch; }.battle-scope .enemy-unit{ flex: 1; min-width: 70px; max-width: 110px; border: 2px solid #555; border-radius: 10px; padding: 6px; display: flex; flex-direction: column; align-items: center; background: var(--panel); cursor: pointer; position: relative; transition: 0.2s; min-height: 120px; touch-action: manipulation; }.battle-scope .enemy-unit:active{ transform: scale(0.97); background: rgba(30, 41, 59, 0.9); }.battle-scope .enemy-unit.target{ border-color: var(--gold); box-shadow: 0 0 15px var(--gold); transform: scale(1.05); z-index: 10; }.battle-scope .target-indicator{ position: absolute; top: -15px; color: var(--gold); font-weight: bold; font-size: 10px; display: none; }.battle-scope .enemy-unit.target .target-indicator{ display: block; }.battle-scope .bar-outer{ width: 100%; height: 18px; background: #000; border-radius: 7px; overflow: hidden; position: relative; border: 1px solid #444; margin: 4px 0; }.battle-scope .bar-inner{ height: 100%; position: absolute; left: 0; transition: width 0.3s; }.battle-scope .hp-text{ position: absolute; width: 100%; text-align: center; font-size: 12px; font-weight: bold; line-height: 14px; z-index: 10; color: #fff; text-shadow: 1px 1px 1px #000; }.battle-scope #p-panel{ flex: 0.8; padding: 3px; background: var(--panel); border-top: 2px solid #333; }.battle-scope #stats-grid{ display: grid; grid-template-columns: repeat(3, 1fr); font-size: 13px; gap: 3px; margin-top: 3px; color: #94a3b8; }.battle-scope #hand-row{ flex: 1.0; display: flex; justify-content: space-between; gap: 4px; padding: 8px 4px; border-top: 2px solid #333; background: #0f172a; }.battle-scope .card-container{ flex: 1; display: flex; flex-direction: column; gap: 4px; }.battle-scope .card{ height: 50px; min-height: 50px; border: 2px solid #fff; border-radius: 3px; display: flex; flex-direction: column; align-items: center; justify-content: center; cursor: pointer; transition: 0.2s; touch-action: manipulation; }.battle-scope .card:active{ transform: scale(0.95); opacity: 0.9; }.battle-scope .card.locked{ opacity: 0.3; cursor: not-allowed; filter: grayscale(1); }.battle-scope .card.active{ border-color: var(--gold); box-shadow: 0 0 10px var(--gold); transform: scale(1.05); }.battle-scope .plus{ background: #991b1b; }.battle-scope .minus{ background: #1e3a8a; }.battle-scope .mul{ background: #5b21b6; }.battle-scope .div{ background: #065f46; }.battle-scope .nan{ background: #431407; }.battle-scope .discard-btn{ font-size: 8px; background: #450a0a; color: #f87171; border: 1px solid #991b1b; border-radius: 4px; padding: 2px 0; min-height: 14px; text-align: center; cursor: pointer; touch-action: manipulation; }.battle-scope .discard-btn:active{ background: #7f1d1d; transform: scale(0.95); }.battle-scope #keypad{ flex: 1.5; display: grid; grid-template-columns: repeat(3, 1fr); gap: 5px; padding: 3px 3px; background: #1e293b; }.battle-scope .key{ background: #334155; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 24px; font-weight: bold; cursor: pointer; border-bottom: 4px solid #0f172a; min-height: 35px; touch-action: manipulation; user-select: none; }.battle-scope .key:active{ background: #475569; transform: translateY(2px); border-bottom: 2px solid #0f172a; }.battle-scope #feedback{ position: absolute; top: 40%; left: 50%; transform: translate(-50%, -50%); font-size: 22px; font-weight: bold; z-index: 100; pointer-events: none; opacity: 0; text-align: center; width: 90%; text-shadow: 2px 2px 4px #000; }.battle-scope .show{ opacity: 1 !important; transition: 0.2s; }`;
 
 class BattleEngine {
   constructor(){ this.handlers={}; this.tickInterval=null; this._pendingEnd = null; this._primaryEnemyName = '???';}
@@ -626,8 +625,8 @@ class BattleEngine {
           </div>
           <div id="feedback"></div>
           <div style="flex:1.0; display:flex; flex-direction:column; align-items:center; justify-content:center; background:rgba(0,0,0,0.6); border-top: 1px solid #333;">
-            <div id="prob-txt" style="color:#94a3b8; font-weight:bold; font-size:16px; margin-bottom:4px;">カードを選択してください</div>
-            <div id="ans-display" style="font-size:42px; color:var(--gold); min-height:50px; font-family: monospace;"></div>
+            <div id="prob-txt" style="color:#94a3b8; font-weight:bold; font-size:28px; margin-bottom:4px;">カードを選択してください</div>
+            <div id="ans-display" style="font-size:32px; color:var(--gold); min-height:50px; font-family: monospace;"></div>
           </div>
           <div id="keypad">
             <div class="key">1</div><div class="key">2</div><div class="key">3</div>
@@ -652,8 +651,8 @@ class BattleEngine {
 
   _bind(container){
 
-    this.GRADES = GRADES;
-    this.STAGE_MASTER = STAGE_MASTER;
+    this.GRADES = typeof GRADES !== 'undefined' ? GRADES : {};
+    this.STAGE_MASTER = typeof STAGE_MASTER !== 'undefined' ? STAGE_MASTER : [];
 
     this.p = { lv:1, exp:0, next:50, hp:100, mhp:100, atk:15, def:5, spd:5, bp:0, stars:0 };
 
@@ -796,16 +795,15 @@ class BattleEngine {
   ok(){
     if(this.curProb.a === null || this.input === '') return;
     if(parseInt(this.input) === this.curProb.a){
-      // ★ コンボ計算
-      if(this.curProb.op === this.lastOp) this.combo++; else this.combo=1;
-      this.lastOp = this.curProb.op;
-      
-      // ★ 特殊攻撃：同じoperatorが連続4回で5回目にダメージ2倍
+      // ★ コンボ計算と特殊攻撃カウント（lastOp更新前に処理）
       if(this.curProb.op === this.lastOp) {
+        this.combo++;
         this.opChainCount++;
       } else {
+        this.combo = 1;
         this.opChainCount = 1;
       }
+      this.lastOp = this.curProb.op;
       
       if(this.enemies[this.targetIdx].cur<=0) {
         this.targetIdx = this.enemies.findIndex(e=>e.cur>0);
@@ -992,7 +990,7 @@ closeLvUp() {
 	Store.player.stats.atk = this.p.atk;
 	Store.player.stats.def = this.p.def;
 	Store.player.stats.spd = this.p.spd;
-	Store.player.stats.hp = this.p.hp;
+	Store.player.stats.hp = this.p.mhp;
 	Store.player.exp = this.p.exp;
 
     const payload = this._pendingEnd;
@@ -1220,7 +1218,7 @@ function router(){
   app.setAttribute('aria-busy','true');
   app.innerHTML = page.render();
   page.afterRender?.();
-  document.title = `${page.title} - 算術の塔 v1.2.12`;
+  document.title = `${page.title} - 算術の塔 v1.2.13`;
   // （ナビの aria-current の付け替え等は既存通り）
   app.removeAttribute('aria-busy');
 }
@@ -1233,7 +1231,7 @@ window.addEventListener('DOMContentLoaded', ()=>{
    画面：タイトル
 ------------------------------ */
 function TitleScreen(){}
-TitleScreen.title = '算術の塔 v1.2.12';
+TitleScreen.title = '算術の塔 v1.2.13';
 TitleScreen.render = () => {
   const saves = SaveSystem.list();
   const diffBtns = CONFIG.difficulties.map(d=>`<button class="button" data-diff="${d.id}">${d.label}</button>`).join('');

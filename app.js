@@ -475,6 +475,63 @@ class BattleEngine {
 
   mount(container){
     const effectStyles = `
+      /* 問題・答え欄の強調とレイアウト調整 */
+      .battle-scope #prob-txt {
+        font-size: 2.2rem;
+        color: #ffe066;
+        font-weight: bold;
+        margin-bottom: 0.5em;
+        text-align: center;
+        line-height: 1.2;
+        letter-spacing: 0.02em;
+      }
+      .battle-scope #ans-display {
+        font-size: 2.6rem;
+        color: var(--gold);
+        min-height: 2.8em;
+        max-height: 3.2em;
+        font-family: monospace;
+        text-align: center;
+        word-break: break-all;
+        overflow: hidden;
+        margin-bottom: 0.2em;
+        line-height: 1.1;
+      }
+      .battle-scope #hand-row {
+        flex: 1;
+        min-height: 80px;
+        max-height: 160px;
+        overflow-y: visible;
+        align-items: flex-end;
+      }
+      .battle-scope .card-container {
+        min-width: 60px;
+        max-width: 90px;
+        flex: 1 1 0;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 4px;
+      }
+      .battle-scope .discard-btn {
+        font-size: 0.95rem;
+        min-height: 28px;
+        padding: 6px 0;
+        margin-top: 2px;
+        width: 100%;
+        box-sizing: border-box;
+      }
+      @media (max-width: 600px) {
+        .battle-scope #prob-txt { font-size: 1.3rem; }
+        .battle-scope #ans-display { font-size: 1.7rem; min-height: 2.2em; max-height: 2.6em; }
+        .battle-scope #hand-row { min-height: 60px; max-height: 110px; }
+        .battle-scope .card-container { min-width: 44px; max-width: 70px; }
+        .battle-scope .discard-btn { font-size: 0.8rem; min-height: 22px; }
+      }
+      /* 破棄ボタンが隠れないように余白を調整 */
+      .battle-scope #game-screen > div:nth-child(4) { margin-bottom: 0.2em; }
+      .battle-scope #keypad { margin-bottom: 0.2em; }
+
       .battle-scope .effect { position: absolute; pointer-events: none; font-size: 60px; font-weight: bold; animation: effectFloat 1.5s ease-out forwards; z-index: 1000 !important; }
       .battle-scope .effect-small { font-size: 40px; }
       .battle-scope .effect-flame { color: #ff6b1a; text-shadow: 0 0 20px #ff6b1a, 0 0 40px #ff6b1a; }
@@ -1111,33 +1168,20 @@ function router(){
   app.setAttribute('aria-busy','true');
   app.innerHTML = page.render();
   page.afterRender?.();
-  document.title = `${page.title} - 算術の塔 v1.2.10`;
+  document.title = `${page.title} - 算術の塔 v1.2.11`;
   // （ナビの aria-current の付け替え等は既存通り）
   app.removeAttribute('aria-busy');
 }
 window.addEventListener('hashchange', router);
 window.addEventListener('DOMContentLoaded', ()=>{
   router();
-
-  // Prevent double-tap zoom on mobile: if two touchend events occur quickly, prevent default to stop browser zoom
-  // Note: we set passive:false so we can call preventDefault()
-  (function(){
-    let lastTouchEnd = 0;
-    document.addEventListener('touchend', function(e){
-      const now = Date.now();
-      if (now - lastTouchEnd <= 300) {
-        e.preventDefault();
-      }
-      lastTouchEnd = now;
-    }, { passive: false });
-  })();
 });
 
 /* ------------------------------
    画面：タイトル
 ------------------------------ */
 function TitleScreen(){}
-TitleScreen.title = '算術の塔 v1.2.10';
+TitleScreen.title = '算術の塔 v1.2.11';
 TitleScreen.render = () => {
   const saves = SaveSystem.list();
   const diffBtns = CONFIG.difficulties.map(d=>`<button class="button" data-diff="${d.id}">${d.label}</button>`).join('');

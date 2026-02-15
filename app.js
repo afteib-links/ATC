@@ -122,7 +122,6 @@ const Store = {
   floorDeaths: DEFAULTS.run.floorDeaths,
   mode: DEFAULTS.run.mode,
   arenaIndex: DEFAULTS.run.arenaIndex,
-  pendingEnemyIndex: null,
   lastResultStamp: null,
 
   // フロアごとの状態（位置・歩数・撃破記録）
@@ -161,28 +160,24 @@ function currentDifficulty(){ return Store.difficulty || CONFIG.difficulties[1];
 function normalizeMode(mode){ return mode === 'arena' ? 'arena' : 'quest'; }
 function modeLabel(mode){ return normalizeMode(mode) === 'arena' ? '闘技場' : 'クエスト'; }
 function elapsedNow(){ return Store.elapsedSeconds + (Store.timerStartAt ? Math.floor((Date.now()-Store.timerStartAt)/1000) : 0); }
-function getArenaEnemies(){
+function getArenaStages(){
   const floors = (typeof STAGE_MASTER !== 'undefined' && STAGE_MASTER) ? STAGE_MASTER : [];
-  return floors.flatMap((floor, floorIdx)=> (floor.stages || []).flatMap(stage=>
-    (stage.enemies || []).map((enemy, enemyIdx)=>({
-      floorIdx,
-      stageId: stage.id,
-      enemyIdx
-    }))
-  ));
+  return floors.flatMap((floor, floorIdx)=> (floor.stages || []).map(stage=>({
+    floorIdx,
+    stageId: stage.id
+  })));
 }
-function getArenaEnemyAt(index){
-  const list = getArenaEnemies();
+function getArenaStageAt(index){
+  const list = getArenaStages();
   return list[index] || null;
 }
-function setArenaEnemy(index){
+function setArenaStage(index){
   Store.arenaIndex = Math.max(0, index|0);
-  const item = getArenaEnemyAt(Store.arenaIndex);
-  if(!item) return null;
-  Store.floorIndex = item.floorIdx;
-  Store.pendingEventId = item.stageId;
-  Store.pendingEnemyIndex = item.enemyIdx;
-  return item;
+  const stage = getArenaStageAt(Store.arenaIndex);
+  if(!stage) return null;
+  Store.floorIndex = stage.floorIdx;
+  Store.pendingEventId = stage.stageId;
+  return stage;
 }
 function computeScore(){
   const t = Store.elapsedSeconds;
@@ -229,8 +224,7 @@ function applySaveData(data){
   Store.arenaIndex = data?.arenaIndex ?? DEFAULTS.run.arenaIndex;
   Store.settings = data?.settings || cloneDefault(DEFAULTS.settings);
   Store.lastResultStamp = null;
-  Store.pendingEnemyIndex = null;
-  if(Store.mode === 'arena') setArenaEnemy(Store.arenaIndex);
+  if(Store.mode === 'arena') setArenaStage(Store.arenaIndex);
   ensureFloorState(Store.floorIndex);
   Store.timerStartAt = null;
   startRunTimer();
@@ -731,9 +725,9 @@ class BattleEngine {
       .battle-scope .effect-wind { color: #2e8e38; text-shadow: 0 0 20px #2e8e38, 0 0 40px #2e8e38; }
       .battle-scope .effect-light { color: #fff; text-shadow: 0 0 20px #fbbf24, 0 0 40px #fbbf24; }
       @keyframes effectFloat { 
-        0% { opacity: 1; transform: translateY(0) scale(1.2) rotate(0deg); } 
-        50% { opacity: 1; transform: translateY(-40px) scale(1.5) rotate(180deg); } 
-        100% { opacity: 0; transform: translateY(-100px) scale(0.3) rotate(360deg); } 
+        0% { opacity: 1; transform: translateY(10) scale(1.2) rotate(0deg); } 
+        50% { opacity: 1; transform: translateY(-40px) scale(1.5) rotate(360deg); } 
+        100% { opacity: 0; transform: translateY(-20px) scale(0.3) rotate(720deg); } 
       }
       @keyframes damageShake { 0%, 100% { transform: translateX(0); } 25% { transform: translateX(-5px); } 75% { transform: translateX(5px); } }
       @keyframes damageFlash { 0%, 100% { filter: brightness(1); } 50% { filter: brightness(2) hue-rotate(-30deg); } }
@@ -750,7 +744,7 @@ class BattleEngine {
           <div id="p-panel">
             <div style="display:flex; justify-content:space-between; font-size:12px; margin-bottom:5px;">
               <b id="p-floor-name">---</b>
-              <b>STAGE: <span id="p-stage-count">1</span> / 10 (<span id="p-grade-name">-</span>)</b>
+              <b>STAGE: <span id="p-stage-count">1</span> / <span id="p-stage-total">-</span> (<span id="p-grade-name">-</span>)</b>
               <b style="color:#00aaff;">TIME: <span id="battle-timer">0.00</span>s</b>
             </div>
             <div class="bar-outer">
@@ -842,11 +836,10 @@ class BattleEngine {
     this.updateUI();
   }
 
-  startBattle({ player, floorIdx, stageId, grade, overrideEnemies }){
+  startBattle({ player, floorIdx, stageId, grade }){
     this.currentGrade = grade || '初級';
     this.floorIdx = Math.max(0, Math.min(floorIdx ?? 0, this.STAGE_MASTER.length-1));
-    this.currentStage = Math.max(1, Math.min(stageId ?? 1, 10));
-    this.overrideEnemies = Array.isArray(overrideEnemies) ? overrideEnemies : null;
+    this.currentStage = Math.max(1, stageId ?? 1);
     if(player){
       this.p.lv = player.level ?? this.p.lv;
       this.p.atk = player.stats?.atk ?? this.p.atk;
@@ -864,8 +857,7 @@ class BattleEngine {
     // ★ 先頭敵名を保持（描画前でも取れるように）
     const floorData = this.STAGE_MASTER[floorIdx] || this.STAGE_MASTER[0];
     const stageData = (floorData.stages || []).find(s => s.id === this.currentStage) || floorData.stages?.[0] || {};
-    const enemiesForName = this.overrideEnemies || stageData.enemies || [];
-    this._primaryEnemyName = enemiesForName[0]?.name || '???';
+    this._primaryEnemyName = (stageData.enemies && stageData.enemies[0]?.name) || '???';
 
     if (!this.tickInterval) this.tickInterval = setInterval(() => this.tick(), 100);
   }
@@ -926,8 +918,8 @@ class BattleEngine {
     const cont = this.dom.handRow.querySelector(`#card-cont-${idx}`);
     const newData = this.generateCardData();
     cont.replaceChild(this.createCardUI(newData, idx), this.dom.handRow.querySelector(`#card-obj-${idx}`));
-    // ★ カード破棄時もコンボをリセット
-    this.combo = 0;
+    // ★ カード破棄時もコンボをリセット(いったんなしで様子見、必要なら追加予定)
+    // this.combo = 0;
     this.opChainCount = 0;
     if(this.curProb.cardIdx === idx) this.resetTurn();
     this.updateUI();
@@ -1001,16 +993,22 @@ class BattleEngine {
         if(this.enemies[this.targetIdx].cur <= 0){
           const enemy = this.enemies[this.targetIdx];
           enemy.cur = 0;
-          enemy.defeated = true; // ★ 倒れた状態をマーク
           Store.totalKills += 1;
           
-          // ★ エフェクトが見えるように1.5秒後に非表示処理
+          // ★ エフェクトが当たってから吹き飛ぶように、最後のエフェクト表示後に defeated を設定
+          const effectDelay = this.curProb.rank >= 5 ? 2000 : (this.curProb.rank === 4 ? 1400 : (this.curProb.rank === 2 ? 1400 : (this.curProb.rank === 3 ? 1000 : (this.curProb.rank === 1 ? 1000 : 0))));
+          setTimeout(() => {
+            enemy.defeated = true; // ★ エフェクト後に倒れた状態をマーク
+            this.renderEnemies(); // ★ 吹き飛ぶアニメーションを開始
+          }, effectDelay);
+          
+          // ★ 吹き飛んだ後に非表示処理（元の1.5秒 + エフェクト待ち時間）
           setTimeout(() => {
             enemy.defeatedAndHidden = true;
             const alive = this.enemies.findIndex(e=>e.cur>0 && !e.defeated);
             if(alive === -1) this.handleVictory(); else this.targetIdx = alive;
             this.renderEnemies();
-          }, 1500);
+          }, effectDelay + 1500);
         }
       }
       const idx = this.curProb.cardIdx;
@@ -1231,9 +1229,11 @@ closeLvUp() {
     this.dom.screen.style.background = floorData.bg || '#111';
     this.dom.pFloor.textContent = floorData.floor || '';
     const stageData = (floorData.stages||[]).find(s=>s.id===this.currentStage) || (floorData.stages||[])[0];
-    const enemiesSource = this.overrideEnemies || stageData.enemies || [];
+    const stageTotal = (floorData.stages || []).length;
+    const stageTotalEl = this.dom.screen.querySelector('#p-stage-total');
+    if(stageTotalEl) stageTotalEl.textContent = String(stageTotal || '-');
     const resolveStat = this._resolveStat;
-    this.enemies = enemiesSource.map(en => ({
+    this.enemies = stageData.enemies.map(en => ({
       ...en,
       hp: resolveStat(en.hp),
       cur: 0,
@@ -1417,10 +1417,9 @@ TitleScreen.afterRender = () => {
       Store.settings = cloneDefault(DEFAULTS.settings);
       Store.mode = normalizeMode(selectedMode);
       Store.arenaIndex = DEFAULTS.run.arenaIndex;
-      Store.pendingEnemyIndex = null;
       if(Store.mode === 'arena'){
-        const item = setArenaEnemy(0);
-        if(!item){
+        const stage = setArenaStage(0);
+        if(!stage){
           alert('闘技場データがありません');
           return;
         }
@@ -1438,8 +1437,8 @@ TitleScreen.afterRender = () => {
       if(!s) return;
       applySaveData(s);
       if(normalizeMode(Store.mode) === 'arena'){
-        const item = getArenaEnemyAt(Store.arenaIndex) || setArenaEnemy(Store.arenaIndex);
-        if(!item){
+        const stage = getArenaStageAt(Store.arenaIndex) || setArenaStage(Store.arenaIndex);
+        if(!stage){
           location.hash = '/result';
           return;
         }
@@ -1552,12 +1551,12 @@ MapScreen.render = () => {
 };
 MapScreen.afterRender = () => {
   if(normalizeMode(Store.mode) === 'arena'){
-    const item = getArenaEnemyAt(Store.arenaIndex) || setArenaEnemy(Store.arenaIndex);
-    if(!item){
+    const stage = getArenaStageAt(Store.arenaIndex) || setArenaStage(Store.arenaIndex);
+    if(!stage){
       location.hash = '/result';
       return;
     }
-    if(typeof Store.pendingEventId !== 'number') setArenaEnemy(Store.arenaIndex);
+    if(typeof Store.pendingEventId !== 'number') setArenaStage(Store.arenaIndex);
     location.hash = '/battle';
     return;
   }
@@ -1748,7 +1747,7 @@ BattleScreen.afterRender = () => {
       // ★ 敷詰：バトル勝利時に敵の復活情報をStore.floorStates に記録
       // ボスキャラは復活しない
       if (!isBoss) {
-        const stageId = Math.max(1, Math.min(parseInt(Store.pendingEventId, 10), 10));
+        const stageId = Math.max(1, parseInt(Store.pendingEventId, 10) || 1);
         const floorIdx = Store.floorIndex;
         ensureFloorState(floorIdx);
         
@@ -1775,8 +1774,8 @@ BattleScreen.afterRender = () => {
     if(normalizeMode(Store.mode) === 'arena'){
       if(result === 'win'){
         Store.arenaIndex += 1;
-        const nextItem = setArenaEnemy(Store.arenaIndex);
-        if(nextItem){
+        const nextStage = setArenaStage(Store.arenaIndex);
+        if(nextStage){
           if(location.hash.replace(/^#/, '') === '/battle'){
             router();
           } else {
@@ -1794,24 +1793,19 @@ BattleScreen.afterRender = () => {
 
   // ★ BattleEngine.startBattle() を呼ぶ前に、先頭敵名を引けるよう
   // BattleEngine に “現在のステージ情報” を持たせておく
-  let stageId = Math.max(1, Math.min(parseInt(Store.pendingEventId || 1, 10), 10));
+  let stageId = Math.max(1, parseInt(Store.pendingEventId || 1, 10) || 1);
   let floorIdx = Math.max(0, Store.floorIndex);
-  let overrideEnemies = null;
   if(normalizeMode(Store.mode) === 'arena'){
-    const item = getArenaEnemyAt(Store.arenaIndex) || setArenaEnemy(Store.arenaIndex);
-    if(item){
-      stageId = item.stageId;
-      floorIdx = item.floorIdx;
-      const floorData = (typeof STAGE_MASTER !== 'undefined' ? STAGE_MASTER[floorIdx] : null) || {};
-      const stageData = (floorData.stages || []).find(s => s.id === stageId) || {};
-      const enemy = (stageData.enemies || [])[item.enemyIdx];
-      if(enemy) overrideEnemies = [{ ...enemy }];
+    const stage = getArenaStageAt(Store.arenaIndex) || setArenaStage(Store.arenaIndex);
+    if(stage){
+      stageId = stage.stageId;
+      floorIdx = stage.floorIdx;
     }
   }
   const grade = currentDifficulty().grade;
 
   console.log(`[DEBUG] Starting battle - floorIdx: ${floorIdx}, stageId: ${stageId}`);
-  battle.startBattle({ player: Store.player, floorIdx, stageId, grade, overrideEnemies });
+  battle.startBattle({ player: Store.player, floorIdx, stageId, grade });
   
   console.log(`[DEBUG] Starting battle - floorIdx: ${floorIdx}, stageId: ${stageId}`);
 };

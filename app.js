@@ -449,19 +449,19 @@ const BATTLE_CSS_SCOPED = `.battle-scope{
             --bg: #0f172a; --panel: #1e293b; --gold: #fbbf24; 
             --green: #2ecc71; --red: #ef4444; --timer: #22d3ee;
             --correct: #4ade80; --wrong: #f87171;
-        }.battle-scope *{ box-sizing: border-box; -webkit-tap-highlight-color: transparent; }.battle-scope{ font-family: 'Helvetica Neue', Arial, sans-serif; background: var(--bg); color: #fff; margin: 0; display: flex; justify-content: center; height: 100vh; overflow: hidden; }.battle-scope /* 背景色の遷移を滑らかにする設定 */
+        }.battle-scope *{ box-sizing: border-box; -webkit-tap-highlight-color: transparent; }.battle-scope{ font-family: 'Helvetica Neue', Arial, sans-serif; background: var(--bg); color: #fff; margin: 0; display: flex; justify-content: center; min-height: 100vh; overflow: auto; }.battle-scope /* 背景色の遷移を滑らかにする設定 */
         #game-screen{ 
-            width: 100%; max-width: 480px; height: 100%; 
+            width: 100%; max-width: 480px; min-height: 100vh;
             display: flex; flex-direction: column; position: relative; 
             background: #111; border: 1px solid #333; 
             transition: background 1.0s ease; 
-        }.battle-scope .overlay{ position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.95); z-index: 5000; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 20px; }.battle-scope .modal-inner{ background: var(--panel); padding: 20px; border: 3px solid var(--gold); border-radius: 15px; width: 100%; max-width: 420px; }.battle-scope .btn{ cursor: pointer; border: none; border-radius: 8px; font-weight: bold; color: #000; width: 100%; padding: 12px; margin: 5px 0; font-size: 16px; transition: opacity 0.2s; }.battle-scope .btn-main{ background: var(--gold); color: #000; }.battle-scope /* セレクトボックスのスタイル */
+        }.battle-scope .overlay{ position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.95); z-index: 5000; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 10px; overflow-y: auto; }.battle-scope .modal-inner{ background: var(--panel); padding: 15px; border: 3px solid var(--gold); border-radius: 15px; width: 100%; max-width: 420px; max-height: 90vh; overflow-y: auto; }.battle-scope .btn{ cursor: pointer; border: none; border-radius: 8px; font-weight: bold; color: #000; width: 100%; padding: 14px; margin: 8px 0; font-size: 16px; transition: all 0.2s; touch-action: manipulation; user-select: none; }.battle-scope .btn:active{ transform: scale(0.95); opacity: 0.8; }.battle-scope .btn-main{ background: var(--gold); color: #000; }.battle-scope /* セレクトボックスのスタイル */
         .select-style{
             width: 100%; padding: 12px; border-radius: 8px; background: #334155; color: white;
             border: 1px solid var(--gold); font-size: 16px; margin-bottom: 10px; appearance: none;
             background-image: url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='white' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3e%3cpolyline points='6 9 12 15 18 9'%3e%3c/polyline%3e%3c/svg%3e");
             background-repeat: no-repeat; background-position: right 10px center; background-size: 1em;
-        }.battle-scope #enemy-field{ flex: 2.3; display: flex; flex-direction: row; justify-content: center; align-items: center; gap: 8px; padding: 10px; background: rgba(0,0,0,0.4); overflow-x: auto; }.battle-scope .enemy-unit{ flex: 1; min-width: 80px; max-width: 120px; border: 2px solid #555; border-radius: 12px; padding: 8px; display: flex; flex-direction: column; align-items: center; background: var(--panel); cursor: pointer; position: relative; transition: 0.2s; }.battle-scope .enemy-unit.target{ border-color: var(--gold); box-shadow: 0 0 15px var(--gold); transform: scale(1.05); z-index: 10; }.battle-scope .target-indicator{ position: absolute; top: -15px; color: var(--gold); font-weight: bold; font-size: 10px; display: none; }.battle-scope .enemy-unit.target .target-indicator{ display: block; }.battle-scope .bar-outer{ width: 100%; height: 14px; background: #000; border-radius: 7px; overflow: hidden; position: relative; border: 1px solid #444; margin: 4px 0; }.battle-scope .bar-inner{ height: 100%; position: absolute; left: 0; transition: width 0.3s; }.battle-scope .hp-text{ position: absolute; width: 100%; text-align: center; font-size: 9px; font-weight: bold; line-height: 14px; z-index: 10; color: #fff; text-shadow: 1px 1px 1px #000; }.battle-scope #p-panel{ flex: 1.3; padding: 10px; background: var(--panel); border-top: 2px solid #333; }.battle-scope #stats-grid{ display: grid; grid-template-columns: repeat(3, 1fr); font-size: 10px; gap: 4px; margin-top: 8px; color: #94a3b8; }.battle-scope #hand-row{ flex: 1.0; display: flex; justify-content: space-between; gap: 4px; padding: 8px; border-top: 2px solid #333; background: #0f172a; }.battle-scope .card-container{ flex: 1; display: flex; flex-direction: column; gap: 4px; }.battle-scope .card{ height: 60px; border: 2px solid #fff; border-radius: 8px; display: flex; flex-direction: column; align-items: center; justify-content: center; cursor: pointer; transition: 0.2s; }.battle-scope .card.locked{ opacity: 0.3; cursor: not-allowed; filter: grayscale(1); }.battle-scope .card.active{ border-color: var(--gold); box-shadow: 0 0 10px var(--gold); transform: scale(1.05); }.battle-scope .plus{ background: #991b1b; }.battle-scope .minus{ background: #1e3a8a; }.battle-scope .mul{ background: #5b21b6; }.battle-scope .div{ background: #065f46; }.battle-scope .nan{ background: #431407; }.battle-scope .discard-btn{ font-size: 8px; background: #450a0a; color: #f87171; border: 1px solid #991b1b; border-radius: 4px; padding: 4px 0; text-align: center; cursor: pointer; }.battle-scope #keypad{ flex: 2.0; display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; padding: 8px; background: #1e293b; }.battle-scope .key{ background: #334155; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 24px; font-weight: bold; cursor: pointer; border-bottom: 4px solid #0f172a; }.battle-scope #feedback{ position: absolute; top: 40%; left: 50%; transform: translate(-50%, -50%); font-size: 22px; font-weight: bold; z-index: 100; pointer-events: none; opacity: 0; text-align: center; width: 90%; text-shadow: 2px 2px 4px #000; }.battle-scope .show{ opacity: 1 !important; transition: 0.2s; }`;
+        }.battle-scope #enemy-field{ flex: 2; display: flex; flex-direction: row; justify-content: center; align-items: center; gap: 6px; padding: 8px; background: rgba(0,0,0,0.4); overflow-x: auto; }.battle-scope .enemy-unit{ flex: 1; min-width: 70px; max-width: 110px; border: 2px solid #555; border-radius: 10px; padding: 6px; display: flex; flex-direction: column; align-items: center; background: var(--panel); cursor: pointer; position: relative; transition: 0.2s; }.battle-scope .enemy-unit.target{ border-color: var(--gold); box-shadow: 0 0 15px var(--gold); transform: scale(1.05); z-index: 10; }.battle-scope .target-indicator{ position: absolute; top: -15px; color: var(--gold); font-weight: bold; font-size: 10px; display: none; }.battle-scope .enemy-unit.target .target-indicator{ display: block; }.battle-scope .bar-outer{ width: 100%; height: 14px; background: #000; border-radius: 7px; overflow: hidden; position: relative; border: 1px solid #444; margin: 4px 0; }.battle-scope .bar-inner{ height: 100%; position: absolute; left: 0; transition: width 0.3s; }.battle-scope .hp-text{ position: absolute; width: 100%; text-align: center; font-size: 9px; font-weight: bold; line-height: 14px; z-index: 10; color: #fff; text-shadow: 1px 1px 1px #000; }.battle-scope #p-panel{ flex: 1.3; padding: 10px; background: var(--panel); border-top: 2px solid #333; }.battle-scope #stats-grid{ display: grid; grid-template-columns: repeat(3, 1fr); font-size: 10px; gap: 4px; margin-top: 8px; color: #94a3b8; }.battle-scope #hand-row{ flex: 1.0; display: flex; justify-content: space-between; gap: 4px; padding: 8px; border-top: 2px solid #333; background: #0f172a; }.battle-scope .card-container{ flex: 1; display: flex; flex-direction: column; gap: 4px; }.battle-scope .card{ height: 60px; border: 2px solid #fff; border-radius: 8px; display: flex; flex-direction: column; align-items: center; justify-content: center; cursor: pointer; transition: 0.2s; }.battle-scope .card.locked{ opacity: 0.3; cursor: not-allowed; filter: grayscale(1); }.battle-scope .card.active{ border-color: var(--gold); box-shadow: 0 0 10px var(--gold); transform: scale(1.05); }.battle-scope .plus{ background: #991b1b; }.battle-scope .minus{ background: #1e3a8a; }.battle-scope .mul{ background: #5b21b6; }.battle-scope .div{ background: #065f46; }.battle-scope .nan{ background: #431407; }.battle-scope .discard-btn{ font-size: 8px; background: #450a0a; color: #f87171; border: 1px solid #991b1b; border-radius: 4px; padding: 4px 0; text-align: center; cursor: pointer; }.battle-scope #keypad{ flex: 2.0; display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; padding: 8px; background: #1e293b; }.battle-scope .key{ background: #334155; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 24px; font-weight: bold; cursor: pointer; border-bottom: 4px solid #0f172a; }.battle-scope #feedback{ position: absolute; top: 40%; left: 50%; transform: translate(-50%, -50%); font-size: 22px; font-weight: bold; z-index: 100; pointer-events: none; opacity: 0; text-align: center; width: 90%; text-shadow: 2px 2px 4px #000; }.battle-scope .show{ opacity: 1 !important; transition: 0.2s; }`;
 
 class BattleEngine {
   constructor(){ this.handlers={}; this.tickInterval=null; this._pendingEnd = null; this._primaryEnemyName = '???';}
@@ -525,9 +525,10 @@ class BattleEngine {
         </div>
         <div id="lvup-modal" class="overlay" style="display:none;">
           <div class="modal-inner">
-            <h2 style="color:var(--gold); text-align:center;">LEVEL UP! BP: <b id="m-bp">0</b></h2>
+            <h2 style="color:var(--gold); text-align:center; margin-top:0;">LEVEL UP!</h2>
+            <div style="text-align:center; font-size:18px; margin-bottom:15px;">BP: <b id="m-bp" style="color:var(--gold);">0</b></div>
             <div id="lvup-rows"></div>
-            <button class="btn btn-main" id="lv-commit">能力を確定</button>
+            <button class="btn btn-main" id="lv-commit" style="margin-top:15px; font-size:18px;">能力を確定</button>
           </div>
         </div>
       </div>
@@ -551,6 +552,7 @@ class BattleEngine {
 
     const $ = (sel)=> container.querySelector(sel);
     this.dom = {
+      battleScope: $('.battle-scope'),
       screen: $('#game-screen'),
       enemyField: $('#enemy-field'),
       pFloor: $('#p-floor-name'),
@@ -786,6 +788,9 @@ class BattleEngine {
 	  const totalExp = this.enemies.reduce((s,e)=>s+(e.exp||0),0);
 	  const rewards = { exp: totalExp };
 
+	  // ★ 勝利時にタイマーを停止
+	  stopRunTimer();
+
 	  // 現在のレベルやBPを基準に、勝利→EXP加算→必要ならLV UPを開く
 	  this.gainExp(totalExp);
 
@@ -829,11 +834,11 @@ class BattleEngine {
     
     stats.forEach(s=>{
       const div = document.createElement('div');
-      div.style = 'display:flex; justify-content:space-between; margin:12px 0; align-items:center;';
-      div.innerHTML = `<span>${s.n}</span><div style="display:flex; gap:10px;">
-        <button class="btn" style="width:40px; padding:5px;" data-dec="${s.k}" data-inc="${s.inc}">-</button>
-        <b id="lv-${s.k}">${s.k==='hp'?this.p.mhp:this.p[s.k]}</b>
-        <button class="btn" style="width:40px; padding:5px;" data-add="${s.k}" data-inc="${s.inc}">+</button>
+      div.style = 'display:flex; justify-content:space-between; margin:10px 0; align-items:center; padding: 8px; background: rgba(0,0,0,0.3); border-radius: 8px;';
+      div.innerHTML = `<span style="font-size:14px;">${s.n}</span><div style="display:flex; gap:12px; align-items:center;">
+        <button class="btn" style="width:50px; height:50px; padding:0; font-size:24px; background:#ef4444;" data-dec="${s.k}" data-inc="${s.inc}">-</button>
+        <b id="lv-${s.k}" style="font-size:18px; min-width:40px; text-align:center;">${s.k==='hp'?this.p.mhp:this.p[s.k]}</b>
+        <button class="btn" style="width:50px; height:50px; padding:0; font-size:24px; background:#10b981;" data-add="${s.k}" data-inc="${s.inc}">+</button>
       </div>`;
       rows.appendChild(div);
     });
@@ -1030,7 +1035,7 @@ closeLvUp() {
     const enemyField = this.dom.enemyField;
     
     // ★ 重要：エフェクトの親コンテナをbattle-scopeにする（enemyFieldのinnerHTMLで消えないように）
-    const battleScope = this.dom.screen.querySelector('.battle-scope');
+    const battleScope = this.dom.battleScope;
     
     if (!enemyField || !battleScope) return;
     
@@ -1214,9 +1219,8 @@ MapScreen.render = () => {
 
     <!-- ★ 遭遇オーバーレイ -->
     <div id="pre-battle-overlay" style="display:none;
-         position:fixed; inset:0; z-index:9999; background:rgba(0,0,0,.6);
-         align-items:center; justify-content:center;">
-      <div style="background:#111827; border:1px solid #334155; border-radius:12px; padding:16px; width:min(560px, 92vw);">
+         position:fixed; inset:0; z-index:9999; background:rgba(0,0,0,.6);">
+      <div style="background:#111827; border:1px solid #334155; border-radius:12px; padding:16px; width:min(560px, 92vw); position:absolute; bottom:120px; left:50%; transform:translateX(-50%);">
         <div id="encounter-text" style="margin-bottom:12px; line-height:1.6"></div>
         <div class="flex" style="justify-content:flex-end; gap:8px;">
           <button class="button" id="btn-escape">逃げる</button>
@@ -1240,6 +1244,9 @@ MapScreen.afterRender = () => {
   const root = document.getElementById('map-root');
   const mapData = getMapData(Store.floorIndex);
   const floorState = ensureFloorState(Store.floorIndex);
+
+  // ★ マップ画面に戻ったらタイマーを再開
+  startRunTimer();
 
   const map = new MapEngine(mapData);
   map.mount(root);

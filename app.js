@@ -163,14 +163,14 @@ class MapEngine {
     container.innerHTML = `
       <style>
       .map-scope { background: #0d0f14; color: #e0e6ed; font-family: 'Segoe UI', sans-serif; border-radius:16px; padding: 1rem; }
-      .map-scope #game-ui { width: 420px; max-width: 100%; background: #1a1d23; border-radius: 28px; padding: 30px; position: relative; border: 3px solid #00d4ff; box-shadow: 0 30px 60px rgba(0,0,0,0.8), 0 0 30px rgba(0,212,255,0.4); margin: 0 auto; }
-      .map-scope #navigation-core { position: absolute; top: -60px; right: 20px; width: 130px; height: 130px; display: flex; align-items: center; justify-content: center; }
-      .map-scope #radar-grid { position: absolute; display: grid; grid-template-columns: repeat(3, 1fr); grid-template-rows: repeat(3, 1fr); width: 120px; height: 120px; gap: 4px; z-index: 1; pointer-events:none; }
+      .map-scope #game-ui { width: 420px; max-width: 100%; background: #1a1d23; border-radius: 50%; padding: 30px; position: relative; border: 3px solid #00d4ff; box-shadow: 0 30px 60px rgba(0,0,0,0.8), 0 0 30px rgba(0,212,255,0.4); margin: 0 auto; aspect-ratio: 1; display: flex; flex-direction: column; justify-content: center; }
+      .map-scope #navigation-core { position: absolute; top: -60px; right: 20px; width: 130px; height: 130px; display: flex; align-items: center; justify-content: center; z-index: 10; }
+      .map-scope #radar-grid { position: absolute; display: grid; grid-template-columns: repeat(3, 1fr); grid-template-rows: repeat(3, 1fr); width: 120px; height: 120px; gap: 4px; z-index: 11; pointer-events:none; }
       .map-scope .cell { border-radius: 4px; transition: background 0.2s; }
       .map-scope .is-room { background: rgba(255,255,255,0.25); border: 1px solid rgba(255,255,255,0.05); }
       .map-scope .is-path { background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.05); }
       .map-scope .is-current { border: 2px solid #00aaff; background: rgba(0,170,255,0.3); box-shadow: inset 0 0 10px #00aaff; z-index:3; }
-      .map-scope #compass-center { width: 46px; height: 46px; background: rgba(13,17,23,0.95); border: 2px solid #00aaff; border-radius: 50%; display:flex; align-items:center; justify-content:center; z-index:2; box-shadow:0 0 15px rgba(0,0,0,0.7); }
+      .map-scope #compass-center { width: 46px; height: 46px; background: rgba(13,17,23,0.95); border: 2px solid #00aaff; border-radius: 50%; display:flex; align-items:center; justify-content:center; z-index:12; box-shadow:0 0 15px rgba(0,0,0,0.7); position: relative; }
       .map-scope #arrow { font-size: 30px; color: #00aaff; text-shadow: 0 0 8px #00aaff; line-height:1; }
       .map-scope #log { height: 180px; overflow-y: auto; background: rgba(0,0,0,0.4); border-radius: 15px; padding: 20px; margin-bottom: 25px; border: 1px solid #2d333b; line-height: 1.6; }
       .map-scope .controls { display: grid; grid-template-columns: repeat(3, 1fr); gap: 15px; }
@@ -468,17 +468,24 @@ class BattleEngine {
 
   mount(container){
     const effectStyles = `
-      .battle-scope .effect { position: absolute; pointer-events: none; font-size: 60px; font-weight: bold; animation: effectFloat 1.5s ease-out forwards; z-index: 100; }
+      .battle-scope .effect { position: absolute; pointer-events: none; font-size: 60px; font-weight: bold; animation: effectFloat 1.5s ease-out forwards; z-index: 1000 !important; }
       .battle-scope .effect-small { font-size: 40px; }
       .battle-scope .effect-flame { color: #ff6b1a; text-shadow: 0 0 20px #ff6b1a, 0 0 40px #ff6b1a; }
       .battle-scope .effect-ice { color: #4dd9ff; text-shadow: 0 0 20px #4dd9ff, 0 0 40px #4dd9ff; }
       .battle-scope .effect-thunder { color: #ffd700; text-shadow: 0 0 20px #ffd700, 0 0 40px #ffd700; }
       .battle-scope .effect-wind { color: #2e8e38; text-shadow: 0 0 20px #2e8e38, 0 0 40px #2e8e38; }
       .battle-scope .effect-light { color: #fff; text-shadow: 0 0 20px #fbbf24, 0 0 40px #fbbf24; }
-      @keyframes effectFloat { 0% { opacity: 1; transform: translateY(0) scale(1.2) rotate(0deg); } 50% { transform: translateY(-40px) scale(1.5) rotate(180deg); } 100% { opacity: 0; transform: translateY(-100px) scale(0.3) rotate(360deg); } }
+      @keyframes effectFloat { 
+        0% { opacity: 1; transform: translateY(0) scale(1.2) rotate(0deg); } 
+        50% { opacity: 1; transform: translateY(-40px) scale(1.5) rotate(180deg); } 
+        100% { opacity: 0; transform: translateY(-100px) scale(0.3) rotate(360deg); } 
+      }
       @keyframes damageShake { 0%, 100% { transform: translateX(0); } 25% { transform: translateX(-5px); } 75% { transform: translateX(5px); } }
       @keyframes damageFlash { 0%, 100% { filter: brightness(1); } 50% { filter: brightness(2) hue-rotate(-30deg); } }
       .battle-scope .enemy-unit.damaged { animation: damageShake 0.3s, damageFlash 0.5s; }
+      .battle-scope .enemy-unit.defeated { opacity: 0.3; filter: grayscale(100%); pointer-events: none; transform: scale(0.9); transition: all 0.5s; }
+      @keyframes defeatedFade { to { opacity: 0; transform: scale(0.5) rotate(180deg); } }
+      .battle-scope .enemy-unit.defeated { animation: defeatedFade 1.5s ease-out forwards; }
     `;
       container.innerHTML = `
       <div class="battle-scope">
@@ -489,6 +496,7 @@ class BattleEngine {
             <div style="display:flex; justify-content:space-between; font-size:12px; margin-bottom:5px;">
               <b id="p-floor-name">---</b>
               <b>STAGE: <span id="p-stage-count">1</span> / 10 (<span id="p-grade-name">-</span>)</b>
+              <b style="color:#00aaff;">TIME: <span id="battle-timer">0.00</span>s</b>
             </div>
             <div class="bar-outer">
               <div id="p-hp-txt" class="hp-text">100 / 100</div>
@@ -557,7 +565,8 @@ class BattleEngine {
       lvRows: $('#lvup-rows'),
       lvCommit: $('#lv-commit'),
       mBp: $('#m-bp'),
-      feedback: $('#feedback')
+      feedback: $('#feedback'),
+      battleTimer: $('#battle-timer')
     };
 
     // 敵フィールドを相対配置にして、エフェクトの絶対配置表示に対応
@@ -734,9 +743,15 @@ class BattleEngine {
         if(this.enemies[this.targetIdx].cur <= 0){
           const enemy = this.enemies[this.targetIdx];
           enemy.cur = 0;
+          enemy.defeated = true; // ★ 倒れた状態をマーク
           
-          const alive = this.enemies.findIndex(e=>e.cur>0);
-          if(alive === -1) this.handleVictory(); else this.targetIdx = alive;
+          // ★ エフェクトが見えるように1.5秒後に非表示処理
+          setTimeout(() => {
+            enemy.defeatedAndHidden = true;
+            const alive = this.enemies.findIndex(e=>e.cur>0 && !e.defeated);
+            if(alive === -1) this.handleVictory(); else this.targetIdx = alive;
+            this.renderEnemies();
+          }, 1500);
         }
       }
       const idx = this.curProb.cardIdx;
@@ -871,6 +886,11 @@ closeLvUp() {
 
   tick(){
     if(this.isPaused || this.p.hp<=0) return;
+    // ★ 戦闘中のタイマー表示を更新
+    if(this.dom.battleTimer && Store.timerStartAt){
+      const elapsed = Store.elapsedSeconds + Math.floor((Date.now()-Store.timerStartAt)/1000);
+      this.dom.battleTimer.textContent = elapsed.toFixed(0);
+    }
     this.enemies.forEach((e,i)=>{
       // ★ 麻痺している敵のタイマーを更新
       if (e.paralyzed) {
@@ -920,11 +940,13 @@ closeLvUp() {
   renderEnemies(){
     const f = this.dom.enemyField; f.innerHTML='';
     this.enemies.forEach((e,i)=>{
-      if(e.cur<=0) return;
+      if(e.cur<=0 && e.defeatedAndHidden) return; // ★ 完全に倒れて非表示の敵はスキップ
       const div = document.createElement('div');
       div.id = `enemy-unit-${i}`;
-      div.className = `enemy-unit ${i===this.targetIdx?'target':''}`;
-      div.onclick = ()=>{ if(e.cur>0){ this.targetIdx=i; this.renderEnemies(); } };
+      // ★ 倒れた敵は視覚的に薄く表示
+      const defeatedClass = e.defeated ? ' defeated' : '';
+      div.className = `enemy-unit ${i===this.targetIdx?'target':''}${defeatedClass}`;
+      div.onclick = ()=>{ if(e.cur>0 && !e.defeated){ this.targetIdx=i; this.renderEnemies(); } };
       const timerPercent = (Math.max(0,e.t)/e.spd)*100;
       // ★ 麻痺状態の敵は視覚的に表示
       const paralysisLabel = e.paralyzed ? '<div style="color:var(--gold); font-size:8px; font-weight:bold;">⚡麻痺中</div>' : '';
@@ -974,6 +996,8 @@ closeLvUp() {
   }
 
   showDamageEffect(enemy, op, rank) {
+    console.log('🎯 showDamageEffect called:', { enemy: enemy.name, op, rank });
+    
     // エフェクトのシンボルとクラスを決定
     const effectMap = {
       '+': { symbol: '🔥', class: 'effect-flame' },
@@ -982,6 +1006,7 @@ closeLvUp() {
       '÷': { symbol: '💨', class: 'effect-wind' }
     };
     const effect = effectMap[op] || { symbol: '✨', class: 'effect-light' };
+    console.log('✨ Effect selected:', effect);
 
     // レベルに応じた表示回数と大きさを決定
     let effectConfigs = [];
@@ -1000,45 +1025,95 @@ closeLvUp() {
         effectConfigs.push({ size: isSmall ? 'small' : 'large', delay: i * 0.2 });
       }
     }
+    console.log('⚙️ Effect configs:', effectConfigs);
 
     // エフェクトを表示
     const enemyIdx = this.enemies.indexOf(enemy);
     const enemyField = this.dom.enemyField;
-    const enemyEl = enemyField.querySelector(`#enemy-unit-${enemyIdx}`);
     
-    if (!enemyEl) return; // 敵ユニットが見つからない場合は何もしない
+    // ★ 重要：エフェクトの親コンテナをbattle-scopeにする（enemyFieldのinnerHTMLで消えないように）
+    const battleScope = this.dom.screen.querySelector('.battle-scope');
+    
+    console.log('🔍 Enemy field check:', { 
+      enemyIdx, 
+      fieldExists: !!enemyField,
+      battleScopeExists: !!battleScope,
+      fieldPosition: enemyField?.style.position 
+    });
+    
+    if (!enemyField || !battleScope) {
+      console.error('❌ Enemy field or battle scope not found!');
+      return;
+    }
+    
+    const enemyEl = enemyField.querySelector(`#enemy-unit-${enemyIdx}`);
+    console.log('🔍 Enemy element:', { 
+      selector: `#enemy-unit-${enemyIdx}`, 
+      found: !!enemyEl,
+      rect: enemyEl?.getBoundingClientRect()
+    });
+    
+    if (!enemyEl) {
+      console.error('❌ Enemy unit element not found!');
+      return;
+    }
     
     // 敵ユニットに被ダメージエフェクトを追加
     enemyEl.classList.add('damaged');
-    setTimeout(() => enemyEl.classList.remove('damaged'), 500);
+    setTimeout(() => {
+      const currentEnemyEl = enemyField.querySelector(`#enemy-unit-${enemyIdx}`);
+      if (currentEnemyEl) currentEnemyEl.classList.remove('damaged');
+    }, 500);
     
-    effectConfigs.forEach(config => {
+    effectConfigs.forEach((config, idx) => {
       setTimeout(() => {
+        // 毎回敵要素を再取得（renderEnemiesで再描画される可能性があるため）
+        const currentEnemyEl = enemyField.querySelector(`#enemy-unit-${enemyIdx}`);
+        if (!currentEnemyEl) {
+          console.warn(`⚠️ Enemy unit ${enemyIdx} not found during effect display`);
+          return;
+        }
+        
         const effectEl = document.createElement('div');
         effectEl.className = `effect ${config.size === 'small' ? 'effect-small' : ''} ${effect.class}`;
         effectEl.textContent = effect.symbol;
-        effectEl.style.position = 'absolute';
+        effectEl.style.position = 'fixed'; // ★ fixedに変更してビューポート基準で配置
+        effectEl.style.zIndex = '1000';
+        effectEl.style.pointerEvents = 'none';
         
-        // 敵アイコン（sprite）の中心位置を計算
-        const rect = enemyEl.getBoundingClientRect();
-        const fieldRect = enemyField.getBoundingClientRect();
+        // 敵アイコン（sprite）の画面上での中心位置を計算
+        const rect = currentEnemyEl.getBoundingClientRect();
         
         // 敵ユニット内のアイコン部分（おおよそ中央）に配置
         // エフェクトのサイズを考慮して中心に配置
         const effectSize = config.size === 'small' ? 40 : 60;
-        const centerX = rect.left - fieldRect.left + rect.width / 2 - effectSize / 2;
-        const centerY = rect.top - fieldRect.top + rect.height / 2 - effectSize / 2;
+        const centerX = rect.left + rect.width / 2 - effectSize / 2;
+        const centerY = rect.top + rect.height / 2 - effectSize / 2;
         
         // ランダムな微調整でエフェクトに動きを出す
         const randomOffset = () => (Math.random() - 0.5) * 20;
         
-        effectEl.style.left = (centerX + randomOffset()) + 'px';
-        effectEl.style.top = (centerY + randomOffset()) + 'px';
+        const finalX = centerX + randomOffset();
+        const finalY = centerY + randomOffset();
         
-        enemyField.appendChild(effectEl);
+        effectEl.style.left = finalX + 'px';
+        effectEl.style.top = finalY + 'px';
+        
+        console.log(`💥 Effect ${idx} created at:`, { 
+          left: finalX, 
+          top: finalY, 
+          size: config.size,
+          class: effectEl.className
+        });
+        
+        // ★ battle-scopeに追加（enemyFieldではなく）
+        battleScope.appendChild(effectEl);
         
         // アニメーション終了後にDOM削除
-        setTimeout(() => effectEl.remove(), 1500);
+        setTimeout(() => {
+          effectEl.remove();
+          console.log(`🗑️ Effect ${idx} removed`);
+        }, 1500);
       }, config.delay * 1000);
     });
   }
@@ -1059,7 +1134,7 @@ function router(){
   app.setAttribute('aria-busy','true');
   app.innerHTML = page.render();
   page.afterRender?.();
-  document.title = `${page.title} - 算術の塔 v1.2.4`;
+  document.title = `${page.title} - 算術の塔 v1.2.5`;
   // （ナビの aria-current の付け替え等は既存通り）
   app.removeAttribute('aria-busy');
 }
@@ -1085,7 +1160,7 @@ window.addEventListener('DOMContentLoaded', ()=>{
    画面：タイトル
 ------------------------------ */
 function TitleScreen(){}
-TitleScreen.title = '算術の塔 v1.2.4';
+TitleScreen.title = '算術の塔 v1.2.5';
 TitleScreen.render = () => {
   const saves = SaveSystem.list();
   const diffBtns = CONFIG.difficulties.map(d=>`<button class="button" data-diff="${d.id}">${d.label}</button>`).join('');

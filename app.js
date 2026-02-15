@@ -1355,9 +1355,10 @@ TitleScreen.title = '算術の塔 v1.2.17';
 TitleScreen.render = () => {
   const saves = SaveSystem.list();
   const diffBtns = CONFIG.difficulties.map(d=>`<button class="button" data-diff="${d.id}">${d.label}</button>`).join('');
+  const currentMode = normalizeMode(Store.mode || DEFAULTS.run.mode);
   const modeBtns = `
-    <button class="button" data-mode="quest">クエスト</button>
-    <button class="button" data-mode="arena">闘技場</button>
+    <button class="button mode-btn${currentMode==='quest' ? ' is-selected' : ''}" data-mode="quest" aria-pressed="${currentMode==='quest'}">クエスト</button>
+    <button class="button mode-btn${currentMode==='arena' ? ' is-selected' : ''}" data-mode="arena" aria-pressed="${currentMode==='arena'}">闘技場</button>
   `;
   const saveList = saves.length ? `
     <table class="table"><thead><tr><th>スロット</th><th>モード</th><th>難易度</th><th>フロア</th><th>経過秒</th><th>更新</th><th></th></tr></thead><tbody>
@@ -1387,12 +1388,21 @@ TitleScreen.render = () => {
 };
 TitleScreen.afterRender = () => {
   let selectedMode = Store.mode || DEFAULTS.run.mode;
+  const syncModeButtons = () => {
+    document.querySelectorAll('[data-mode]').forEach(btn=>{
+      const isActive = normalizeMode(btn.getAttribute('data-mode')) === normalizeMode(selectedMode);
+      btn.classList.toggle('is-selected', isActive);
+      btn.setAttribute('aria-pressed', String(isActive));
+    });
+  };
   document.querySelectorAll('[data-mode]').forEach(btn=>{
     btn.addEventListener('click', ()=>{
       selectedMode = normalizeMode(btn.getAttribute('data-mode'));
       Store.mode = selectedMode;
+      syncModeButtons();
     });
   });
+  syncModeButtons();
   document.querySelectorAll('[data-diff]').forEach(btn=>{
     btn.addEventListener('click', ()=>{
       const id = btn.getAttribute('data-diff');
@@ -1767,7 +1777,11 @@ BattleScreen.afterRender = () => {
         Store.arenaIndex += 1;
         const nextItem = setArenaEnemy(Store.arenaIndex);
         if(nextItem){
-          location.hash = '/battle';
+          if(location.hash.replace(/^#/, '') === '/battle'){
+            router();
+          } else {
+            location.hash = '/battle';
+          }
           return;
         }
       }

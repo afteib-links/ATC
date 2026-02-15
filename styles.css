@@ -21,6 +21,7 @@ html,body{margin:0;padding:0;background:var(--bg);color:var(--text);
 .panel--battle{padding:0;border:none;background:transparent}
 .button{display:inline-flex;align-items:center;gap:.5rem;padding:.6rem .9rem;border-radius:.6rem;
   border:1px solid rgba(255,255,255,.08);background:linear-gradient(180deg,rgba(96,165,250,.16),rgba(59,130,246,.14));color:#eaf2ff;text-decoration:none;cursor:pointer}
+.button.is-selected{border-color:rgba(96,165,250,.6);box-shadow:0 0 0 2px rgba(96,165,250,.25) inset;background:linear-gradient(180deg,rgba(96,165,250,.35),rgba(59,130,246,.2))}
 .button:hover{transform:translateY(-1px)}
 .grid{display:grid;gap:1rem}
 .grid-2{grid-template-columns:1fr 1fr}

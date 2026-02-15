@@ -468,14 +468,17 @@ class BattleEngine {
 
   mount(container){
     const effectStyles = `
-      .battle-scope .effect { position: absolute; pointer-events: none; font-size: 60px; font-weight: bold; animation: effectFloat 1.5s ease-out forwards; }
+      .battle-scope .effect { position: absolute; pointer-events: none; font-size: 60px; font-weight: bold; animation: effectFloat 1.5s ease-out forwards; z-index: 100; }
       .battle-scope .effect-small { font-size: 40px; }
-      .battle-scope .effect-flame { color: #ff6b1a; text-shadow: 0 0 10px #ff6b1a; }
-      .battle-scope .effect-ice { color: #4dd9ff; text-shadow: 0 0 10px #4dd9ff; }
-      .battle-scope .effect-thunder { color: #ffd700; text-shadow: 0 0 10px #ffd700; }
-      .battle-scope .effect-wind { color: #2e8e38; text-shadow: 0 0 10px #2e8e38; }
-      .battle-scope .effect-light { color: #fff; text-shadow: 0 0 15px #fbbf24; }
-      @keyframes effectFloat { 0% { opacity: 1; transform: translateY(0) scale(1); } 100% { opacity: 0; transform: translateY(-80px) scale(0.5); } }
+      .battle-scope .effect-flame { color: #ff6b1a; text-shadow: 0 0 20px #ff6b1a, 0 0 40px #ff6b1a; }
+      .battle-scope .effect-ice { color: #4dd9ff; text-shadow: 0 0 20px #4dd9ff, 0 0 40px #4dd9ff; }
+      .battle-scope .effect-thunder { color: #ffd700; text-shadow: 0 0 20px #ffd700, 0 0 40px #ffd700; }
+      .battle-scope .effect-wind { color: #2e8e38; text-shadow: 0 0 20px #2e8e38, 0 0 40px #2e8e38; }
+      .battle-scope .effect-light { color: #fff; text-shadow: 0 0 20px #fbbf24, 0 0 40px #fbbf24; }
+      @keyframes effectFloat { 0% { opacity: 1; transform: translateY(0) scale(1.2) rotate(0deg); } 50% { transform: translateY(-40px) scale(1.5) rotate(180deg); } 100% { opacity: 0; transform: translateY(-100px) scale(0.3) rotate(360deg); } }
+      @keyframes damageShake { 0%, 100% { transform: translateX(0); } 25% { transform: translateX(-5px); } 75% { transform: translateX(5px); } }
+      @keyframes damageFlash { 0%, 100% { filter: brightness(1); } 50% { filter: brightness(2) hue-rotate(-30deg); } }
+      .battle-scope .enemy-unit.damaged { animation: damageShake 0.3s, damageFlash 0.5s; }
     `;
       container.innerHTML = `
       <div class="battle-scope">
@@ -1000,23 +1003,37 @@ closeLvUp() {
 
     // エフェクトを表示
     const enemyIdx = this.enemies.indexOf(enemy);
+    const enemyField = this.dom.enemyField;
+    const enemyEl = enemyField.querySelector(`#enemy-unit-${enemyIdx}`);
+    
+    if (!enemyEl) return; // 敵ユニットが見つからない場合は何もしない
+    
+    // 敵ユニットに被ダメージエフェクトを追加
+    enemyEl.classList.add('damaged');
+    setTimeout(() => enemyEl.classList.remove('damaged'), 500);
+    
     effectConfigs.forEach(config => {
       setTimeout(() => {
         const effectEl = document.createElement('div');
         effectEl.className = `effect ${config.size === 'small' ? 'effect-small' : ''} ${effect.class}`;
         effectEl.textContent = effect.symbol;
-        // 明示的に絶対配置をセット（親が position:relative であることが必要）
         effectEl.style.position = 'absolute';
         
-        // 敵ユニットの位置を基準にエフェクトを表示
-        const enemyField = this.dom.enemyField;
-        const enemyEl = enemyField.querySelector(`#enemy-unit-${enemyIdx}`);
-        if (enemyEl) {
-          const rect = enemyEl.getBoundingClientRect();
-          const fieldRect = enemyField.getBoundingClientRect();
-          effectEl.style.left = (rect.left - fieldRect.left + rect.width / 2 - 30) + 'px';
-          effectEl.style.top = (rect.top - fieldRect.top + rect.height / 2 - 30) + 'px';
-        }
+        // 敵アイコン（sprite）の中心位置を計算
+        const rect = enemyEl.getBoundingClientRect();
+        const fieldRect = enemyField.getBoundingClientRect();
+        
+        // 敵ユニット内のアイコン部分（おおよそ中央）に配置
+        // エフェクトのサイズを考慮して中心に配置
+        const effectSize = config.size === 'small' ? 40 : 60;
+        const centerX = rect.left - fieldRect.left + rect.width / 2 - effectSize / 2;
+        const centerY = rect.top - fieldRect.top + rect.height / 2 - effectSize / 2;
+        
+        // ランダムな微調整でエフェクトに動きを出す
+        const randomOffset = () => (Math.random() - 0.5) * 20;
+        
+        effectEl.style.left = (centerX + randomOffset()) + 'px';
+        effectEl.style.top = (centerY + randomOffset()) + 'px';
         
         enemyField.appendChild(effectEl);
         

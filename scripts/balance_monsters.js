@@ -45,7 +45,9 @@ const roleOf = (stage) => (stage.id === 10 ? 'boss' : stage.id === 5 ? 'mid' : '
 // ---- フロア別ターゲット ----
 const ANSWERS = { normal: 3, mid: 8, boss: 16 };
 const DEF_RATIO = { normal: 0.25, mid: 0.30, boss: 0.35 };   // 対プレイヤーATK比
-const ATK_HP_RATIO = { normal: 0.08, mid: 0.13, boss: 0.18 }; // 1発=対プレイヤーHP比
+// 敵ATK: 1発でプレイヤー最大HPの何割を削るか。生存可能被弾数 ≈ 1/比。
+// 通常0.045(≈22発)/中BOSS0.08(≈12発)/BOSS0.11(≈9発)。時間切迫は残すが被弾即死は避ける。
+const ATK_HP_RATIO = { normal: 0.045, mid: 0.08, boss: 0.11 };
 
 const hpTarget  = (f, role) => dmgPerAns(f) * ANSWERS[role];
 const defTarget = (f, role) => pATK(f) * DEF_RATIO[role];

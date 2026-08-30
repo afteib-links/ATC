@@ -1,21 +1,30 @@
 // maps.js
 // scripts/generate_maps.js により自動生成(シード固定・再現可能)。手編集する場合は同スクリプトも更新すること。
+// floor_1(始まりの森)のみ元の手作りマップを固定使用。
 window.MAPS = [
   {
     id: "floor_1",
     name: "始まりの森",
     layout: [
-      "S 7x0 0x5",
-      "x x x x x",
-      "1 0 0x6 0",
-      "x x     x",
-      "0 8x0x0 0",
-      "x     x x",
-      "0 3x0 9 4",
-      "x x x   x",
-      "2x0 0xAxG"
+      "            AxG",
+      "            x  ",
+      "            0  ",
+      "            x  ",
+      "  0x0x8x0x0x9  ",
+      "  x   x     x  ",
+      "  7   0 Bx0 x  ",
+      "  x   x x   x  ",
+      "  0x0x0 0 0x0  ",
+      "  x   x x x x  ",
+      "  6x0x5x0x4x0  ",
+      "      x   x x  ",
+      "      0   0 0  ",
+      "      x   x x  ",
+      "Sx1x0x2x0x3 0  ",
+      "        x   x  ",
+      "        0x0x0  "
     ],
-    mapping: { "A": 10 }
+    mapping: { "A": 10, "B": 11 }
   },
   {
     id: "floor_2",

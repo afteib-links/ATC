@@ -29,11 +29,38 @@ function mulberry32(seed) {
   };
 }
 
+// ---- 始まりの森(floor_1)の固定レイアウト ----
+// このフロアだけは元の手作りマップに戻す(チュートリアル的な短いフロア)。
+// 生成はせず、この layout / mapping をそのまま使う。
+const FLOOR_1_FIXED = {
+  layout: [
+    '            AxG',
+    '            x  ',
+    '            0  ',
+    '            x  ',
+    '  0x0x8x0x0x9  ',
+    '  x   x     x  ',
+    '  7   0 Bx0 x  ',
+    '  x   x x   x  ',
+    '  0x0x0 0 0x0  ',
+    '  x   x x x x  ',
+    '  6x0x5x0x4x0  ',
+    '      x   x x  ',
+    '      0   0 0  ',
+    '      x   x x  ',
+    'Sx1x0x2x0x3 0  ',
+    '        x   x  ',
+    '        0x0x0  ',
+  ],
+  mapping: { A: 10, B: 11 },
+};
+
 // ---- フロア定義(名前は monster.js の STAGE_MASTER と対応) ----
 // nr x nc はノード格子の行×列。文字盤面は (nr*2-1) x (nc*2-1) になる。
 // フロアが深くなるほどマップを広くして、進行に伴うスケール感を出す。
+// fixed が指定されたフロアは生成せず、その固定レイアウトを使う。
 const FLOORS = [
-  { id: 'floor_1',  name: '始まりの森',     nr: 5, nc: 5 },
+  { id: 'floor_1',  name: '始まりの森',     fixed: FLOOR_1_FIXED },
   { id: 'floor_2',  name: '灼熱の洞窟',     nr: 5, nc: 6 },
   { id: 'floor_3',  name: '静寂の氷河',     nr: 6, nc: 6 },
   { id: 'floor_4',  name: '黄金の砂漠',     nr: 6, nc: 7 },
@@ -141,10 +168,17 @@ function buildFloor(floor, seed) {
   setNode(start[0], start[1], 'S');
   setNode(goal[0], goal[1], 'G');
   setNode(bossNode[0], bossNode[1], 'A'); // A -> 10 (ボス)
-  // 残りノードにステージ番号 or '0'(部屋)を割り当て
+  // 残りノードにステージ番号 or '0'(部屋)を割り当て。stage番号 -> ノード も記録。
+  const stageNode = {}; // stage番号 -> [r,c]
   for (let i = 0; i < rest.length; i++) {
     const [r, c] = rest[i];
-    setNode(r, c, stageNodeIndex.has(i) ? String(stageNodeIndex.get(i)) : '0');
+    if (stageNodeIndex.has(i)) {
+      const s = stageNodeIndex.get(i);
+      stageNode[s] = [r, c];
+      setNode(r, c, String(s));
+    } else {
+      setNode(r, c, '0');
+    }
   }
 
   // 辺(通路)を 'x' で敷く
@@ -155,8 +189,36 @@ function buildFloor(floor, seed) {
     grid[ar + br][ac + bc] = 'x'; // 中点セル
   }
 
+  // ---- ルート指標(RTA=タイムトライアル設計の指標) ----
+  // クリティカルパス = S→ゴールの一意な経路(全域木なので一意)。
+  const keyOf = (r, c) => `${r},${c}`;
+  const pathSet = new Set();
+  let cur = goal;
+  while (cur) { pathSet.add(keyOf(cur[0], cur[1])); cur = parent[cur[0]][cur[1]]; }
+  const pathLen = dist[goal[0]][goal[1]]; // S→ゴールのノード手数
+
+  // 各ステージが本道(クリティカルパス)上か、寄り道(枝)か。寄り道の場合は
+  // 「本道に合流するまでのノード数(片道)」= 寄り道コストを算出する。
+  const detourOf = (node) => {
+    let steps = 0, n = node;
+    while (n && !pathSet.has(keyOf(n[0], n[1]))) { n = parent[n[0]][n[1]]; steps++; }
+    return steps; // 0 なら本道上
+  };
+  const stagesOnPath = [];
+  const stagesOnBranch = [];
+  for (let s = 1; s <= 9; s++) {
+    const node = stageNode[s];
+    if (!node) continue;
+    const d = detourOf(node);
+    if (d === 0) stagesOnPath.push(s);
+    else stagesOnBranch.push({ stage: s, detour: d });
+  }
+
   const layout = grid.map((row) => row.join(''));
-  return { layout, meta: { NR, NC, bossNode, dist } };
+  return {
+    layout,
+    meta: { NR, NC, bossNode, dist, pathLen, stagesOnPath, stagesOnBranch },
+  };
 }
 
 // ---- 生成したレイアウトを文字マス上のBFSで検証 ----
@@ -197,11 +259,18 @@ function validateFloor(floor, layout) {
   return { ok: missing.length === 0, missing, found: [...found].sort() };
 }
 
+// ---- mapping オブジェクトを JS リテラル文字列に整形 ----
+function mappingLiteral(mapping) {
+  const parts = Object.keys(mapping).map((k) => `${JSON.stringify(k)}: ${mapping[k]}`);
+  return `{ ${parts.join(', ')} }`;
+}
+
 // ---- maps.js を出力 ----
 function emitMapsJs(maps) {
   const indent = (n) => ' '.repeat(n);
   let out = '// maps.js\n';
   out += '// scripts/generate_maps.js により自動生成(シード固定・再現可能)。手編集する場合は同スクリプトも更新すること。\n';
+  out += '// floor_1(始まりの森)のみ元の手作りマップを固定使用。\n';
   out += 'window.MAPS = [\n';
   maps.forEach((m, idx) => {
     out += indent(2) + '{\n';
@@ -212,7 +281,7 @@ function emitMapsJs(maps) {
       out += indent(6) + JSON.stringify(row) + (i < m.layout.length - 1 ? ',' : '') + '\n';
     });
     out += indent(4) + '],\n';
-    out += indent(4) + 'mapping: { "A": 10 }\n';
+    out += indent(4) + `mapping: ${mappingLiteral(m.mapping || { A: 10 })}\n`;
     out += indent(2) + '}' + (idx < maps.length - 1 ? ',' : '') + '\n';
   });
   out += '];\n';
@@ -223,12 +292,26 @@ function main() {
   const maps = [];
   const report = [];
   FLOORS.forEach((floor, i) => {
-    // フロアごとに異なるシード(再現可能)
-    const seed = 0x9e3779b9 ^ ((i + 1) * 0x01000193);
-    const { layout } = buildFloor(floor, seed);
+    let layout, mapping, meta = null;
+    if (floor.fixed) {
+      // 固定レイアウト(生成しない)
+      layout = floor.fixed.layout.slice();
+      mapping = floor.fixed.mapping || { A: 10 };
+    } else {
+      // フロアごとに異なるシード(再現可能)
+      const seed = 0x9e3779b9 ^ ((i + 1) * 0x01000193);
+      const built = buildFloor(floor, seed);
+      layout = built.layout;
+      meta = built.meta;
+      mapping = { A: 10 };
+    }
     const v = validateFloor(floor, layout);
-    maps.push({ id: floor.id, name: floor.name, layout });
-    report.push({ floor: floor.id, name: floor.name, size: `${layout.length}x${layout[0].length}`, ...v });
+    maps.push({ id: floor.id, name: floor.name, layout, mapping });
+    report.push({
+      floor: floor.id, name: floor.name,
+      size: `${layout.length}x${layout[0].length}`,
+      fixed: !!floor.fixed, meta, ...v,
+    });
     if (!v.ok) {
       throw new Error(`[検証失敗] ${floor.id}: 未到達=${JSON.stringify(v.missing)}`);
     }
@@ -239,8 +322,20 @@ function main() {
 
   console.log('生成完了: maps.js');
   console.log('フロア数:', maps.length);
+  console.log('');
+  console.log('== 到達性検証 ==');
   report.forEach((r) => {
-    console.log(`  ${r.floor} (${r.name}) 盤面=${r.size} 到達=OK 見つかったイベント=[${r.found.join(',')}]`);
+    const tag = r.fixed ? '(固定)' : '';
+    console.log(`  ${r.floor} (${r.name})${tag} 盤面=${r.size} 到達=OK`);
+  });
+  console.log('');
+  console.log('== ルート指標(RTA=タイムトライアル設計用) ==');
+  console.log('  pathLen = S→ゴールの最短ノード手数 / 本道=クリティカルパス上のステージ / 寄り道=枝上のステージ(片道コスト)');
+  report.forEach((r) => {
+    if (!r.meta) { console.log(`  ${r.floor} (${r.name}) : 固定マップのため指標算出は省略`); return; }
+    const onPath = r.meta.stagesOnPath.join(',') || 'なし';
+    const branch = r.meta.stagesOnBranch.map((b) => `${b.stage}(+${b.detour})`).join(',') || 'なし';
+    console.log(`  ${r.floor} (${r.name}) : pathLen=${r.meta.pathLen} / 本道ステージ=[${onPath}] / 寄り道ステージ=[${branch}]`);
   });
 }
 

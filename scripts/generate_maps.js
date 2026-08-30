@@ -57,19 +57,22 @@ const FLOOR_1_FIXED = {
 
 // ---- フロア定義(名前は monster.js の STAGE_MASTER と対応) ----
 // nr x nc はノード格子の行×列。文字盤面は (nr*2-1) x (nc*2-1) になる。
-// フロアが深くなるほどマップを広くして、進行に伴うスケール感を出す。
-// fixed が指定されたフロアは生成せず、その固定レイアウトを使う。
+// braid = ループ付与率(0=完全迷路で最も迷路的 / 大きいほど開放的でシンプル)。
+// 迷路度の段階(要望):
+//   1〜3 = シンプル(braid高め・小さめ) / 4〜6 = やや考える(braid中) /
+//   7〜8 = 迷路(braid0) / 9〜10 = 最難関の迷路(braid0・最大)。
+// fixed が指定されたフロア(floor_1)は生成せず固定レイアウトを使う。
 const FLOORS = [
-  { id: 'floor_1',  name: '始まりの森',     fixed: FLOOR_1_FIXED },
-  { id: 'floor_2',  name: '灼熱の洞窟',     nr: 5, nc: 6 },
-  { id: 'floor_3',  name: '静寂の氷河',     nr: 6, nc: 6 },
-  { id: 'floor_4',  name: '黄金の砂漠',     nr: 6, nc: 7 },
-  { id: 'floor_5',  name: '廃墟の機械都市', nr: 7, nc: 7 },
-  { id: 'floor_6',  name: '幻想の天空城',   nr: 7, nc: 8 },
-  { id: 'floor_7',  name: '奈落の底',       nr: 8, nc: 8 },
-  { id: 'floor_8',  name: '時空の歪み',     nr: 8, nc: 8 },
-  { id: 'floor_9',  name: '無の空間',       nr: 8, nc: 9 },
-  { id: 'floor_10', name: '算術の頂点',     nr: 9, nc: 9 },
+  { id: 'floor_1',  name: '始まりの森',     tier: 'シンプル', fixed: FLOOR_1_FIXED },
+  { id: 'floor_2',  name: '灼熱の洞窟',     tier: 'シンプル', nr: 5, nc: 5, braid: 0.55 },
+  { id: 'floor_3',  name: '静寂の氷河',     tier: 'シンプル', nr: 5, nc: 6, braid: 0.45 },
+  { id: 'floor_4',  name: '黄金の砂漠',     tier: 'やや複雑', nr: 6, nc: 6, braid: 0.25 },
+  { id: 'floor_5',  name: '廃墟の機械都市', tier: 'やや複雑', nr: 6, nc: 7, braid: 0.20 },
+  { id: 'floor_6',  name: '幻想の天空城',   tier: 'やや複雑', nr: 7, nc: 7, braid: 0.15 },
+  { id: 'floor_7',  name: '奈落の底',       tier: '迷路',     nr: 8, nc: 8, braid: 0.0 },
+  { id: 'floor_8',  name: '時空の歪み',     tier: '迷路',     nr: 8, nc: 9, braid: 0.0 },
+  { id: 'floor_9',  name: '無の空間',       tier: '最難関迷路', nr: 9, nc: 9, braid: 0.0 },
+  { id: 'floor_10', name: '算術の頂点',     tier: '最難関迷路', nr: 9, nc: 10, braid: 0.0 },
 ];
 
 const edgeKey = (r, c, nr, nc) => {
@@ -101,6 +104,36 @@ function generateMaze(NR, NC, rng) {
   return edges;
 }
 
+// ---- braid: 完全迷路に「ループ(抜け道)」を追加して迷路度を下げる ----
+// braid は 0.0(完全迷路=最も迷路的) 〜 1.0(全隣接を接続=最も開放的) の割合。
+// ゴールに接続する余分な辺は追加しない = ボスが出口を封鎖する構造を維持する。
+function braidMaze(NR, NC, edges, rng, braid, goal) {
+  if (!braid || braid <= 0) return edges;
+  const isGoal = (r, c) => r === goal[0] && c === goal[1];
+  const candidates = [];
+  for (let r = 0; r < NR; r++) {
+    for (let c = 0; c < NC; c++) {
+      // 右・下の隣接のみ見れば重複なく全ペアを網羅できる
+      if (c + 1 < NC) {
+        const k = edgeKey(r, c, r, c + 1);
+        if (!edges.has(k) && !isGoal(r, c) && !isGoal(r, c + 1)) candidates.push(k);
+      }
+      if (r + 1 < NR) {
+        const k = edgeKey(r, c, r + 1, c);
+        if (!edges.has(k) && !isGoal(r, c) && !isGoal(r + 1, c)) candidates.push(k);
+      }
+    }
+  }
+  // Fisher-Yates(rng)でシャッフルし、先頭から braid 割合ぶん辺を追加
+  for (let i = candidates.length - 1; i > 0; i--) {
+    const j = Math.floor(rng() * (i + 1));
+    [candidates[i], candidates[j]] = [candidates[j], candidates[i]];
+  }
+  const addCount = Math.floor(braid * candidates.length);
+  for (let i = 0; i < addCount; i++) edges.add(candidates[i]);
+  return edges;
+}
+
 // ---- ノードグラフ上でBFS(距離と親を返す) ----
 function bfsNodes(NR, NC, edges, start) {
   const dist = Array.from({ length: NR }, () => Array(NC).fill(-1));
@@ -126,11 +159,18 @@ function bfsNodes(NR, NC, edges, start) {
 // ---- 1フロア分のレイアウト(文字列配列)を生成 ----
 function buildFloor(floor, seed) {
   const { nr: NR, nc: NC } = floor;
+  const braid = floor.braid || 0;
   const rng = mulberry32(seed);
-  const edges = generateMaze(NR, NC, rng);
+  const treeEdges = generateMaze(NR, NC, rng);
+  const treeEdgeCount = treeEdges.size;
 
   const start = [0, 0];
   const goal = [NR - 1, NC - 1];
+
+  // 完全迷路にループを付与(迷路度の調整)。ゴール接続辺は増やさずボス封鎖を維持。
+  const edges = braidMaze(NR, NC, treeEdges, rng, braid, goal);
+  const extraEdges = edges.size - treeEdgeCount; // 追加ループ数
+
   const { dist, parent } = bfsNodes(NR, NC, edges, start);
 
   // ボス(A=10)はゴール直前のノード(ゴールの親)に配置。全域木なのでゴールへ行くには
@@ -214,10 +254,25 @@ function buildFloor(floor, seed) {
     else stagesOnBranch.push({ stage: s, detour: d });
   }
 
+  // 行き止まり(次数1のノード。S/G は除外)の数 = 迷路度の目安
+  const degree = Array.from({ length: NR }, () => Array(NC).fill(0));
+  for (const key of edges) {
+    const [aStr, bStr] = key.split('|');
+    const [ar, ac] = aStr.split(',').map(Number);
+    const [br, bc] = bStr.split(',').map(Number);
+    degree[ar][ac]++; degree[br][bc]++;
+  }
+  let deadEnds = 0;
+  for (let r = 0; r < NR; r++) {
+    for (let c = 0; c < NC; c++) {
+      if (degree[r][c] === 1 && !(r === start[0] && c === start[1]) && !(r === goal[0] && c === goal[1])) deadEnds++;
+    }
+  }
+
   const layout = grid.map((row) => row.join(''));
   return {
     layout,
-    meta: { NR, NC, bossNode, dist, pathLen, stagesOnPath, stagesOnBranch },
+    meta: { NR, NC, bossNode, dist, pathLen, stagesOnPath, stagesOnBranch, extraEdges, deadEnds },
   };
 }
 
@@ -308,7 +363,7 @@ function main() {
     const v = validateFloor(floor, layout);
     maps.push({ id: floor.id, name: floor.name, layout, mapping });
     report.push({
-      floor: floor.id, name: floor.name,
+      floor: floor.id, name: floor.name, tier: floor.tier || '',
       size: `${layout.length}x${layout[0].length}`,
       fixed: !!floor.fixed, meta, ...v,
     });
@@ -326,11 +381,18 @@ function main() {
   console.log('== 到達性検証 ==');
   report.forEach((r) => {
     const tag = r.fixed ? '(固定)' : '';
-    console.log(`  ${r.floor} (${r.name})${tag} 盤面=${r.size} 到達=OK`);
+    console.log(`  ${r.floor} (${r.name}) [${r.tier}]${tag} 盤面=${r.size} 到達=OK`);
+  });
+  console.log('');
+  console.log('== 迷路度(complexity) ==');
+  console.log('  ループ = 追加された抜け道の数(0=完全迷路) / 行き止まり = 次数1ノード数(多いほど迷路的)');
+  report.forEach((r) => {
+    if (!r.meta) { console.log(`  ${r.floor} (${r.name}) [${r.tier}] : 固定マップ`); return; }
+    console.log(`  ${r.floor} (${r.name}) [${r.tier}] : ループ=${r.meta.extraEdges} / 行き止まり=${r.meta.deadEnds}`);
   });
   console.log('');
   console.log('== ルート指標(RTA=タイムトライアル設計用) ==');
-  console.log('  pathLen = S→ゴールの最短ノード手数 / 本道=クリティカルパス上のステージ / 寄り道=枝上のステージ(片道コスト)');
+  console.log('  pathLen = S→ゴールの最短ノード手数 / 本道=最短路上のステージ / 寄り道=枝上のステージ(片道コスト)');
   report.forEach((r) => {
     if (!r.meta) { console.log(`  ${r.floor} (${r.name}) : 固定マップのため指標算出は省略`); return; }
     const onPath = r.meta.stagesOnPath.join(',') || 'なし';

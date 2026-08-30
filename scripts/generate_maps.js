@@ -30,17 +30,19 @@ function mulberry32(seed) {
 }
 
 // ---- フロア定義(名前は monster.js の STAGE_MASTER と対応) ----
+// nr x nc はノード格子の行×列。文字盤面は (nr*2-1) x (nc*2-1) になる。
+// フロアが深くなるほどマップを広くして、進行に伴うスケール感を出す。
 const FLOORS = [
-  { id: 'floor_1',  name: '始まりの森',     nr: 4, nc: 4 },
-  { id: 'floor_2',  name: '灼熱の洞窟',     nr: 4, nc: 5 },
-  { id: 'floor_3',  name: '静寂の氷河',     nr: 5, nc: 4 },
-  { id: 'floor_4',  name: '黄金の砂漠',     nr: 5, nc: 5 },
-  { id: 'floor_5',  name: '廃墟の機械都市', nr: 4, nc: 6 },
-  { id: 'floor_6',  name: '幻想の天空城',   nr: 6, nc: 4 },
-  { id: 'floor_7',  name: '奈落の底',       nr: 5, nc: 5 },
-  { id: 'floor_8',  name: '時空の歪み',     nr: 4, nc: 5 },
-  { id: 'floor_9',  name: '無の空間',       nr: 5, nc: 4 },
-  { id: 'floor_10', name: '算術の頂点',     nr: 4, nc: 4 },
+  { id: 'floor_1',  name: '始まりの森',     nr: 5, nc: 5 },
+  { id: 'floor_2',  name: '灼熱の洞窟',     nr: 5, nc: 6 },
+  { id: 'floor_3',  name: '静寂の氷河',     nr: 6, nc: 6 },
+  { id: 'floor_4',  name: '黄金の砂漠',     nr: 6, nc: 7 },
+  { id: 'floor_5',  name: '廃墟の機械都市', nr: 7, nc: 7 },
+  { id: 'floor_6',  name: '幻想の天空城',   nr: 7, nc: 8 },
+  { id: 'floor_7',  name: '奈落の底',       nr: 8, nc: 8 },
+  { id: 'floor_8',  name: '時空の歪み',     nr: 8, nc: 8 },
+  { id: 'floor_9',  name: '無の空間',       nr: 8, nc: 9 },
+  { id: 'floor_10', name: '算術の頂点',     nr: 9, nc: 9 },
 ];
 
 const edgeKey = (r, c, nr, nc) => {
@@ -120,6 +122,16 @@ function buildFloor(floor, seed) {
   }
   rest.sort((a, b) => dist[a[0]][a[1]] - dist[b[0]][b[1]] || (a[0] - b[0]) || (a[1] - b[1]));
 
+  // ステージ1〜9は距離順リストから均等間隔で選び、マップ全体に分散配置する
+  // (スタート付近に固まらせず、1が最も近く・9が最奥=ボス手前になるようにする)。
+  const stageNodeIndex = new Map(); // rest内index -> ステージ番号(1..9)
+  const N = rest.length;
+  for (let k = 0; k < 9; k++) {
+    let idx = N <= 1 ? 0 : Math.round((k * (N - 1)) / 8);
+    while (stageNodeIndex.has(idx)) idx = (idx + 1) % N; // 重複回避
+    stageNodeIndex.set(idx, k + 1);
+  }
+
   // 文字グリッド(空白=壁)を用意
   const H = NR * 2 - 1, W = NC * 2 - 1;
   const grid = Array.from({ length: H }, () => Array(W).fill(' '));
@@ -129,10 +141,10 @@ function buildFloor(floor, seed) {
   setNode(start[0], start[1], 'S');
   setNode(goal[0], goal[1], 'G');
   setNode(bossNode[0], bossNode[1], 'A'); // A -> 10 (ボス)
-  // ステージ1〜9を近い順に配置、余りは '0'(部屋)
+  // 残りノードにステージ番号 or '0'(部屋)を割り当て
   for (let i = 0; i < rest.length; i++) {
     const [r, c] = rest[i];
-    setNode(r, c, i < 9 ? String(i + 1) : '0');
+    setNode(r, c, stageNodeIndex.has(i) ? String(stageNodeIndex.get(i)) : '0');
   }
 
   // 辺(通路)を 'x' で敷く

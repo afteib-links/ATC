@@ -82,8 +82,10 @@ const edgeKey = (r, c, nr, nc) => {
 };
 
 // ---- 完全迷路(全域木)を再帰的バックトラッカーで生成 ----
-function generateMaze(NR, NC, rng) {
-  const visited = Array.from({ length: NR }, () => Array(NC).fill(false));
+// isBlocked(r,c)=true のセルは迷路に含めない(後で個別に接続する。例: ゴール)。
+function generateMaze(NR, NC, rng, isBlocked) {
+  const blocked = isBlocked || (() => false);
+  const visited = Array.from({ length: NR }, (_, r) => Array.from({ length: NC }, (_, c) => blocked(r, c)));
   const edges = new Set();
   const stack = [[0, 0]];
   visited[0][0] = true;
@@ -161,21 +163,26 @@ function buildFloor(floor, seed) {
   const { nr: NR, nc: NC } = floor;
   const braid = floor.braid || 0;
   const rng = mulberry32(seed);
-  const treeEdges = generateMaze(NR, NC, rng);
-  const treeEdgeCount = treeEdges.size;
 
   const start = [0, 0];
   const goal = [NR - 1, NC - 1];
+
+  // ボス(A=10)はゴールの隣接ノードに固定し、ゴールはそのボスとだけ繋ぐ。
+  // これにより braid でループを増やしても「ゴールへ行くには必ずボスを通る」
+  // (=ボスが出口を封鎖する)構造が厳密に保たれる。
+  const bossNode = (NC > 1) ? [NR - 1, NC - 2] : [NR - 2, NC - 1];
+
+  // 迷路はゴールを除外して生成し、最後にボス→ゴールを1本だけ接続する。
+  const isGoalCell = (r, c) => r === goal[0] && c === goal[1];
+  const treeEdges = generateMaze(NR, NC, rng, isGoalCell);
+  treeEdges.add(edgeKey(bossNode[0], bossNode[1], goal[0], goal[1]));
+  const treeEdgeCount = treeEdges.size;
 
   // 完全迷路にループを付与(迷路度の調整)。ゴール接続辺は増やさずボス封鎖を維持。
   const edges = braidMaze(NR, NC, treeEdges, rng, braid, goal);
   const extraEdges = edges.size - treeEdgeCount; // 追加ループ数
 
   const { dist, parent } = bfsNodes(NR, NC, edges, start);
-
-  // ボス(A=10)はゴール直前のノード(ゴールの親)に配置。全域木なのでゴールへ行くには
-  // 必ずこのノードを通る = ボス→ゴールの導線になる。
-  const bossNode = parent[goal[0]][goal[1]];
 
   // 特別マスを除いた残りノードを、スタートからのBFS距離が近い順に並べる
   const isSame = (a, b) => a && b && a[0] === b[0] && a[1] === b[1];
